@@ -1,54 +1,62 @@
 const axios = require('axios');
 const fs = require('fs');
+const path = require('path');
 const { sendMessage } = require('../handles/sendMessage');
 
-const tokenPath = './token.txt';
-const pageAccessToken = fs.readFileSync(tokenPath, 'utf8').trim();
+const tokenPath = path.resolve(__dirname, '../token.txt');
+let pageAccessToken = '';
+
+try {
+  pageAccessToken = fs.readFileSync(tokenPath, 'utf8').trim();
+} catch (err) {
+  console.error(`Token file not found or unreadable at ${tokenPath}`);
+}
 
 module.exports = {
   name: 'pinterest',
   description: 'Search Pinterest for images.',
-  usage: '-pinterest prompt -number',
+  usage: '-pinterest query -number',
   author: 'coffee',
 
   async execute(senderId, args) {
-    // Ensure args is defined and is an array, default to an empty string if not
-    if (!args || !Array.isArray(args) || args.length === 0) {
-      await sendMessage(senderId, { text: 'Please provide a search query.' }, pageAccessToken);
-      return;
+    if (!args?.length) {
+      return sendMessage(senderId, { text: 'Please provide a search query.' }, pageAccessToken);
     }
 
-    // Handle the case where user provides a search query and optional number of images
-    const match = args.join(' ').match(/(.+)-(\d+)$/);
-    const searchQuery = match ? match[1].trim() : args.join(' ');
-    let imageCount = match ? parseInt(match[2], 10) : 5;
+    const input = args.join(' ');
+    const match = input.match(/(.+?)(?:\s*-\s*(\d+))?$/);
+    const searchQuery = match?.[1]?.trim();
+    let imageCount = parseInt(match?.[2], 10) || 5;
 
-    // Ensure the user-requested count is within 1 to 20
+    if (!searchQuery) {
+      return sendMessage(senderId, { text: 'Invalid search query.' }, pageAccessToken);
+    }
+
     imageCount = Math.max(1, Math.min(imageCount, 20));
 
     try {
-      const { data } = await axios.get(`https://hiroshi-api.onrender.com/image/pinterest?search=${encodeURIComponent(searchQuery)}`);
+      const response = await axios.get('https://hiroshi-api.onrender.com/image/pinterest', {
+        params: { search: searchQuery },
+        timeout: 10000
+      });
 
-      // Limit the number of images to the user-requested count
-      const selectedImages = data.data.slice(0, imageCount);
+      const images = Array.isArray(response.data?.data) ? response.data.data.slice(0, imageCount) : [];
 
-      if (selectedImages.length === 0) {
-        await sendMessage(senderId, { text: `No images found for "${searchQuery}".` }, pageAccessToken);
-        return;
+      if (!images.length) {
+        return sendMessage(senderId, { text: `No images found for "${searchQuery}".` }, pageAccessToken);
       }
 
-      // Send each image in a separate message
-      for (const url of selectedImages) {
-        const attachment = {
-          type: 'image',
-          payload: { url }
-        };
-        await sendMessage(senderId, { attachment }, pageAccessToken);
+      for (const url of images) {
+        await sendMessage(senderId, {
+          attachment: {
+            type: 'image',
+            payload: { url }
+          }
+        }, pageAccessToken);
       }
-
     } catch (error) {
-      console.error('Error:', error);
-      await sendMessage(senderId, { text: 'Error: Could not fetch images.' }, pageAccessToken);
+      console.error('Pinterest Fetch Error:', error?.response?.data || error.message);
+      await sendMessage(senderId, { text: 'Error: Could not fetch images. Please try again later.' }, pageAccessToken);
     }
   }
 };
