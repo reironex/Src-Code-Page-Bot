@@ -17,35 +17,38 @@ module.exports = {
       }
 
       const top = data[0];
-      const message = {
+
+      // Send generic template with image and title (no buttons, no default action)
+      const templateMessage = {
         attachment: {
           type: 'template',
           payload: {
             template_type: 'generic',
             elements: [
               {
-                title: `${top.title} (${top.duration})`,
+                title: top.title,
                 image_url: top.thumbnail,
-                subtitle: `By ${top.author} | Released: ${top.release_date}`,
-                default_action: {
-                  type: 'web_url',
-                  url: top.trackUrl,
-                  webview_height_ratio: 'tall'
-                },
-                buttons: [
-                  {
-                    type: 'web_url',
-                    url: top.trackUrl,
-                    title: 'Listen on Spotify'
-                  }
-                ]
+                subtitle: `By ${top.author} | ${top.duration} | Released: ${top.release_date}`
               }
             ]
           }
         }
       };
 
-      sendMessage(senderId, message, pageAccessToken);
+      // Send the template first
+      await sendMessage(senderId, templateMessage, pageAccessToken);
+
+      // Send the audio attachment (note: Messenger will only play real audio files)
+      await sendMessage(senderId, {
+        attachment: {
+          type: 'audio',
+          payload: {
+            url: top.trackUrl,
+            is_reusable: true
+          }
+        }
+      }, pageAccessToken);
+
     } catch (error) {
       sendMessage(senderId, { text: 'Sorry, there was an error processing your request.' }, pageAccessToken);
     }
