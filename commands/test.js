@@ -34,12 +34,13 @@ module.exports = {
   author: 'Tester',
 
   async execute(senderId, args, pageAccessToken, event) {
-    const imageUrl = await getImageUrl(event, pageAccessToken);
+  console.dir(event, { depth: null });
 
-    if (imageUrl) {
-      await sendMessage(senderId, { text: `Image URL: ${imageUrl}` }, pageAccessToken);
-    } else {
-      await sendMessage(senderId, { text: "No image found in the replied message." }, pageAccessToken);
-    }
+  const imageUrl = await getImageUrl(event, pageAccessToken);
+
+  if (imageUrl) {
+    await sendMessage(senderId, { text: `Image URL: ${imageUrl}` }, pageAccessToken);
+  } else {
+    await sendMessage(senderId, { text: "No image found or URL couldn't be retrieved." }, pageAccessToken);
   }
-};
+}
