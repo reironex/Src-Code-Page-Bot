@@ -1,6 +1,5 @@
-const { sendMessage } = require('../handles/sendMessage');  
-const Genius = require("genius-lyrics");  
-const Client = new Genius.Client("3GEwVjDlZoyhjY_vyrB-vjOpAI3-tEgnyQK2ideAf-YBIPIGKLRwHK6sRJ8aQ7Eq");
+const { sendMessage } = require('../handles/sendMessage');
+const { find } = require('llyrics');
 
 module.exports = {
   name: 'lyrics',
@@ -13,54 +12,54 @@ module.exports = {
       return sendMessage(senderId, { text: 'Please send the song name.\nExample: -lyrics Faded' }, pageAccessToken);
     }
 
-    await fetchLyrics(senderId, args.join(' '), pageAccessToken);
+    const songName = args.join(' ');
+    await fetchLyrics(senderId, songName, pageAccessToken);
   }
 };
 
 const fetchLyrics = async (senderId, songName, pageAccessToken) => {
   try {
-    // Search for the song
-    const searches = await Client.songs.search(songName);
-    if (!searches.length) {
-      return sendMessage(senderId, { text: 'Error: No matching song found.' }, pageAccessToken);
+    await sendMessage(senderId, { text: `Searching for "${songName}"...` }, pageAccessToken);
+
+    const response = await find({
+      song: songName,
+      engine: 'genius', // You can change this to 'musixmatch' or 'youtube'
+      forceSearch: true,
+    });
+
+    if (!response || !response.lyrics) {
+      return sendMessage(senderId, { text: `No lyrics found for "${songName}".` }, pageAccessToken);
     }
 
-    // Get the first result
-    const firstSong = searches[0];
+    const { title, artist, artworkURL, lyrics } = response;
 
-    let lyrics;
-    try {
-      lyrics = await firstSong.lyrics();
-    } catch (err) {
-      return sendMessage(senderId, { text: 'Error: Could not extract lyrics. Genius may have blocked access.' }, pageAccessToken);
-    }
-
-    // Send Title, Artist, and Image as a generic template
+    // Send generic template with song info
     await sendMessage(senderId, {
       attachment: {
         type: "template",
         payload: {
           template_type: "generic",
           elements: [{
-            title: `🎧 | 𝐓𝐢𝐭𝐥𝐞: ${firstSong.title}`,
-            subtitle: `🎙️ | 𝐀𝐫𝐭𝐢𝐬𝐭: ${firstSong.artist.name}`,
-            image_url: firstSong.thumbnail,
+            title: `🎧 | 𝐓𝐢𝐭𝐥𝐞: ${title}`,
+            subtitle: `🎙️ | 𝐀𝐫𝐭𝐢𝐬𝐭: ${artist}`,
+            image_url: artworkURL || undefined,
           }]
         }
       }
     }, pageAccessToken);
 
-    // Send lyrics in chunks
     await sendInChunks(senderId, lyrics, pageAccessToken);
+
   } catch (error) {
-    console.error('Error fetching lyrics:', error.message);
+    console.error('Error fetching lyrics:', error);
     sendMessage(senderId, { text: 'Error: Unable to fetch lyrics. Please try again later.' }, pageAccessToken);
   }
 };
 
-// Sends text in chunks if it exceeds the max length
 const sendInChunks = async (senderId, text, pageAccessToken, maxLength = 1900) => {
-  for (let i = 0; i < text.length; i += maxLength) {
-    await sendMessage(senderId, { text: text.slice(i, i + maxLength) }, pageAccessToken);
+  const chunks = text.match(new RegExp(`.{1,${maxLength}}`, 'gs')) || [];
+  for (let i = 0; i < chunks.length; i++) {
+    const prefix = chunks.length > 1 ? `Part ${i + 1}/${chunks.length}\n` : '';
+    await sendMessage(senderId, { text: prefix + chunks[i] }, pageAccessToken);
   }
 };
