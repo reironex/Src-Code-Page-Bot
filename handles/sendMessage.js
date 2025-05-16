@@ -26,13 +26,22 @@ const sendMessage = async (senderId, { text = '', attachment = null }, pageAcces
     }
 
     if (attachment) {
-      messagePayload.message.attachment = {
-        type: attachment.type,
-        payload: {
-          url: attachment.payload.url,
-          is_reusable: true
-        }
-      };
+      if (attachment.type === 'template') {
+        // Use payload directly for template type
+        messagePayload.message.attachment = {
+          type: 'template',
+          payload: attachment.payload
+        };
+      } else {
+        // For other types (audio, image, etc.)
+        messagePayload.message.attachment = {
+          type: attachment.type,
+          payload: {
+            url: attachment.payload.url,
+            is_reusable: true
+          }
+        };
+      }
     }
 
     // Send the message
@@ -42,7 +51,6 @@ const sendMessage = async (senderId, { text = '', attachment = null }, pageAcces
     await axiosPost(url, { recipient: { id: senderId }, sender_action: "typing_off" }, params);
 
   } catch (e) {
-    // Extract and log the error message concisely
     const errorMessage = e.response?.data?.error?.message || e.message;
     console.error(`Error in ${path.basename(__filename)}: ${errorMessage}`);
   }
