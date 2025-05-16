@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const FormData = require('form-data');
 const { sendMessage } = require('../handles/sendMessage');
 
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
@@ -36,12 +35,16 @@ module.exports = {
       const tempPath = path.join(__dirname, 'temp.jpg');
       fs.writeFileSync(tempPath, buffer);
 
-      const form = new FormData();
-      form.append('image', buffer.toString('base64'));
+      const base64Image = buffer.toString('base64');
 
-      const uploadRes = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, {
+      const form = new URLSearchParams();
+      form.append('key', IMGBB_KEY);
+      form.append('image', base64Image);
+
+      const uploadRes = await fetch('https://api.imgbb.com/1/upload', {
         method: 'POST',
-        body: form,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: form.toString(),
       });
 
       const uploadData = await uploadRes.json();
