@@ -5,7 +5,8 @@ const { sendMessage } = require('../handles/sendMessage');
 
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
-const API_KEY = 'fw_3ZZP4mu2QeZvFuN7NQA9UF5p'; // Replace with your Fireworks key
+const API_KEY = 'fw_3ZZP4mu2QeZvFuN7NQA9UF5p'; // Fireworks API Key
+const IMGBB_KEY = '596919061a4512babcb009c50c65fca1'; // ImgBB API Key
 
 module.exports = {
   name: 'test',
@@ -36,23 +37,21 @@ module.exports = {
       fs.writeFileSync(tempPath, buffer);
 
       const form = new FormData();
-      form.append('file', fs.createReadStream(tempPath));
+      form.append('image', buffer.toString('base64'));
 
-      const uploadRes = await fetch('https://telegra.ph/upload', {
+      const uploadRes = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, {
         method: 'POST',
         body: form,
       });
 
-      const result = await uploadRes.json();
+      const uploadData = await uploadRes.json();
       fs.unlinkSync(tempPath);
 
-      if (!Array.isArray(result) || !result[0]?.src) {
-        return sendMessage(senderId, { text: '❎ | Telegraph upload failed.' }, pageAccessToken);
+      if (!uploadData?.data?.url) {
+        return sendMessage(senderId, { text: '❎ | Failed to upload image.' }, pageAccessToken);
       }
 
-      const imageUrl = `https://telegra.ph${result[0].src}`;
-
-      await sendMessage(senderId, { text: imageUrl }, pageAccessToken);
+      await sendMessage(senderId, { text: uploadData.data.url }, pageAccessToken);
     } catch (err) {
       console.error('Image generation error:', err);
       await sendMessage(senderId, { text: '❎ | Error generating or sending the image.' }, pageAccessToken);
