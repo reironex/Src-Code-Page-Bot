@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const FormData = require('form-data');
 const { sendMessage } = require('../handles/sendMessage');
 
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
@@ -10,7 +11,7 @@ const IMGBB_KEY = '596919061a4512babcb009c50c65fca1'; // ImgBB API Key
 module.exports = {
   name: 'test',
   description: 'Generate an image and send the preview as a link.',
-  usage: '-fluxlink [prompt]',
+  usage: '-test [prompt]',
   author: 'coffee',
 
   async execute(senderId, args, pageAccessToken) {
@@ -35,22 +36,21 @@ module.exports = {
       const tempPath = path.join(__dirname, 'temp.jpg');
       fs.writeFileSync(tempPath, buffer);
 
-      const base64Image = buffer.toString('base64');
-
-      const form = new URLSearchParams();
+      const form = new FormData();
       form.append('key', IMGBB_KEY);
-      form.append('image', base64Image);
+      form.append('image', fs.createReadStream(tempPath));
 
       const uploadRes = await fetch('https://api.imgbb.com/1/upload', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: form.toString(),
+        body: form,
+        headers: form.getHeaders(),
       });
 
       const uploadData = await uploadRes.json();
       fs.unlinkSync(tempPath);
 
       if (!uploadData?.data?.url) {
+        console.error('ImgBB error:', uploadData);
         return sendMessage(senderId, { text: '❎ | Failed to upload image.' }, pageAccessToken);
       }
 
