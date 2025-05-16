@@ -3,24 +3,21 @@ const { sendMessage } = require('../handles/sendMessage');
 
 const getImageUrl = async (event, token) => {
   const mid = event?.message?.reply_to?.mid;
-  if (!mid) return null;
+  if (!mid) {
+    console.log("No MID found in replied message.");
+    return null;
+  }
 
   try {
-    const { data } = await axios.get(`https://graph.facebook.com/v22.0/${mid}`, {
-      params: {
-        fields: 'attachments',
-        access_token: token
-      }
+    const url = `https://graph.facebook.com/v22.0/${mid}/attachments`;
+    console.log("Fetching image attachment from:", url);
+
+    const { data } = await axios.get(url, {
+      params: { access_token: token }
     });
 
-    const attachments = data?.attachments?.data;
-    if (!attachments || attachments.length === 0) return null;
-
-    const imageUrl =
-      attachments[0]?.image_data?.url ||
-      attachments[0]?.payload?.url ||
-      null;
-
+    const imageUrl = data?.data?.[0]?.image_data?.url || null;
+    console.log("Fetched image URL:", imageUrl);
     return imageUrl;
   } catch (err) {
     console.error("Image URL fetch error:", err?.response?.data || err.message);
@@ -30,17 +27,19 @@ const getImageUrl = async (event, token) => {
 
 module.exports = {
   name: 'test',
-  description: 'Fetch and display image URL from a replied message',
-  author: 'Tester',
+  description: 'Reply to an image message and extract its image URL',
+  author: 'Mocha Dev',
 
   async execute(senderId, args, pageAccessToken, event) {
-  console.dir(event, { depth: null });
+    console.log("Incoming event payload:");
+    console.dir(event, { depth: null });
 
-  const imageUrl = await getImageUrl(event, pageAccessToken);
+    const imageUrl = await getImageUrl(event, pageAccessToken);
 
-  if (imageUrl) {
-    await sendMessage(senderId, { text: `Image URL: ${imageUrl}` }, pageAccessToken);
-  } else {
-    await sendMessage(senderId, { text: "No image found or URL couldn't be retrieved." }, pageAccessToken);
+    if (imageUrl) {
+      await sendMessage(senderId, { text: `Image URL: ${imageUrl}` }, pageAccessToken);
+    } else {
+      await sendMessage(senderId, { text: "No image found in the replied message." }, pageAccessToken);
+    }
   }
-}
+};
