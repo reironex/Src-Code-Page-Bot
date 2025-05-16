@@ -27,7 +27,13 @@ const fetchLyrics = async (senderId, songName, pageAccessToken) => {
 
     // Get the first result
     const firstSong = searches[0];
-    const lyrics = await firstSong.lyrics();
+
+    let lyrics;
+    try {
+      lyrics = await firstSong.lyrics();
+    } catch (err) {
+      return sendMessage(senderId, { text: 'Error: Could not extract lyrics. Genius may have blocked access.' }, pageAccessToken);
+    }
 
     // Send Title, Artist, and Image as a generic template
     await sendMessage(senderId, {
