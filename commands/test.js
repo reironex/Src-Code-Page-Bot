@@ -1,11 +1,10 @@
-const fetch = require('node-fetch');
-const { sendMessage } = require('../handles/sendMessage');
-const FormData = require('form-data');
-const { writeFileSync, unlinkSync } = require('fs');
+const fs = require('fs');
 const path = require('path');
+const FormData = require('form-data');
 
-const API_KEY = 'your_fireworks_api_key'; // Replace this
-const IMGBB_KEY = 'your_imgbb_api_key';   // Replace this
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+
+const API_KEY = 'your_fireworks_api_key'; // Replace with your Fireworks key
 
 module.exports = {
   name: 'test',
@@ -21,7 +20,7 @@ module.exports = {
     const prompt = args.join(' ');
 
     try {
-      const response = await fetch("https://api.fireworks.ai/inference/v1/workflows/accounts/fireworks/models/accounts/fireworks/models/flux-1-dev-fp8/text_to_image", {
+      const res = await fetch("https://api.fireworks.ai/inference/v1/workflows/accounts/fireworks/models/accounts/fireworks/models/flux-1-dev-fp8/text_to_image", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -31,33 +30,31 @@ module.exports = {
         body: JSON.stringify({ prompt }),
       });
 
-      const arrayBuffer = await response.arrayBuffer();
-      const imageBuffer = Buffer.from(arrayBuffer);
+      const buffer = Buffer.from(await res.arrayBuffer());
+      const tempPath = path.join(__dirname, 'temp.jpg');
+      fs.writeFileSync(tempPath, buffer);
 
-      const tempImagePath = path.join(__dirname, 'temp.jpg');
-      writeFileSync(tempImagePath, imageBuffer);
-
-      // Upload to imgbb
       const form = new FormData();
-      form.append('image', imageBuffer.toString('base64'));
+      form.append('file', fs.createReadStream(tempPath));
 
-      const uploadRes = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, {
+      const uploadRes = await fetch('https://telegra.ph/upload', {
         method: 'POST',
         body: form,
       });
 
-      const uploadData = await uploadRes.json();
-      unlinkSync(tempImagePath);
+      const result = await uploadRes.json();
+      fs.unlinkSync(tempPath);
 
-      if (!uploadData?.data?.url) {
-        return sendMessage(senderId, { text: '❎ | Failed to upload image for preview.' }, pageAccessToken);
+      if (!Array.isArray(result) || !result[0]?.src) {
+        return sendMessage(senderId, { text: '❎ | Telegraph upload failed.' }, pageAccessToken);
       }
 
-      // Send image as preview link
-      await sendMessage(senderId, { text: uploadData.data.url }, pageAccessToken);
+      const imageUrl = `https://telegra.ph${result[0].src}`;
+
+      await sendMessage(senderId, { text: imageUrl }, pageAccessToken);
     } catch (err) {
-      console.error('Error:', err);
-      await sendMessage(senderId, { text: '❎ | Failed to generate or send image preview.' }, pageAccessToken);
+      console.error('Image generation error:', err);
+      await sendMessage(senderId, { text: '❎ | Error generating or sending the image.' }, pageAccessToken);
     }
   }
 };
