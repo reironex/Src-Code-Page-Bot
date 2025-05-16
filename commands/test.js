@@ -4,7 +4,7 @@ const FormData = require('form-data');
 
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
-const API_KEY = 'your_fireworks_api_key'; // Replace with your Fireworks key
+const API_KEY = 'fw_3ZZP4mu2QeZvFuN7NQA9UF5p'; // Replace with your Fireworks key
 
 module.exports = {
   name: 'test',
