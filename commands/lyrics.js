@@ -19,12 +19,10 @@ module.exports = {
 
 const fetchLyrics = async (senderId, songName, pageAccessToken) => {
   try {
-    await sendMessage(senderId, { text: `Searching for "${songName}"...` }, pageAccessToken);
-
     const response = await find({
       song: songName,
-      engine: 'youtube', // You can change this to 'musixmatch' or 'youtube'
-      forceSearch: true,
+      engine: 'musixmatch',
+      forceSearch: true
     });
 
     if (!response || !response.lyrics) {
@@ -33,7 +31,6 @@ const fetchLyrics = async (senderId, songName, pageAccessToken) => {
 
     const { title, artist, artworkURL, lyrics } = response;
 
-    // Send generic template with song info
     await sendMessage(senderId, {
       attachment: {
         type: "template",
@@ -48,7 +45,8 @@ const fetchLyrics = async (senderId, songName, pageAccessToken) => {
       }
     }, pageAccessToken);
 
-    await sendInChunks(senderId, lyrics, pageAccessToken);
+    const formattedLyrics = formatLyrics(lyrics);
+    await sendInChunks(senderId, formattedLyrics, pageAccessToken);
 
   } catch (error) {
     console.error('Error fetching lyrics:', error);
@@ -62,4 +60,48 @@ const sendInChunks = async (senderId, text, pageAccessToken, maxLength = 1900) =
     const prefix = chunks.length > 1 ? `Part ${i + 1}/${chunks.length}\n` : '';
     await sendMessage(senderId, { text: prefix + chunks[i] }, pageAccessToken);
   }
+};
+
+const formatLyrics = (lyrics) => {
+  const lines = lyrics
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .map(line => line.charAt(0).toUpperCase() + line.slice(1));
+
+  const grouped = [];
+  let currentBlock = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    currentBlock.push(lines[i]);
+
+    const nextLineEmptyOrEnd = !lines[i + 1] || lines[i + 1] === '';
+    if (nextLineEmptyOrEnd || i === lines.length - 1) {
+      grouped.push(currentBlock.join('\n'));
+      currentBlock = [];
+    }
+  }
+
+  const counts = {};
+  for (const block of grouped) {
+    counts[block] = (counts[block] || 0) + 1;
+  }
+
+  let sectionIndex = 0;
+  const labeled = grouped.map(block => {
+    const count = counts[block];
+    let label = '';
+
+    if (count > 1) {
+      if (block.length <= 300) label = '[Chorus]';
+      else label = '[Verse]';
+    } else {
+      label = sectionIndex === grouped.length - 1 ? '[Outro]' : '[Verse]';
+    }
+
+    sectionIndex++;
+    return `${label}\n${block}`;
+  });
+
+  return labeled.join('\n\n');
 };
