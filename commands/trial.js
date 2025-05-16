@@ -1,11 +1,12 @@
 const axios = require('axios');
 const { sendMessage } = require('../handles/sendMessage');
 
+// Function to get the image URL from a Facebook Messenger event
 const getImageUrl = async (event, token) => {
   const mid = event?.message?.reply_to?.mid;
   if (!mid) return null;
   try {
-    const { data } = await axios.get(`https://graph.facebook.com/v22.0/${mid}/attachments`, {
+    const { data } = await axios.get(`https://graph.facebook.com/v21.0/${mid}/attachments`, {
       params: { access_token: token }
     });
     return data?.data?.[0]?.image_data?.url || null;
@@ -16,17 +17,21 @@ const getImageUrl = async (event, token) => {
 };
 
 module.exports = {
-  name: 'trial',
-  description: 'Return the image URL from a replied image message',
-  author: 'Tester',
+  name: 'geturl',
+  description: 'Fetch image URL from a replied image message.',
+  usage: '-geturl (use by replying to an image)',
+  author: 'coffee',
 
   async execute(senderId, args, pageAccessToken, event) {
-    const imageUrl = await getImageUrl(event, pageAccessToken);
-
-    if (imageUrl) {
-      await sendMessage(senderId, { text: `Image URL: ${imageUrl}` }, pageAccessToken);
-    } else {
-      await sendMessage(senderId, { text: "No image URL found. Make sure you reply to an image message." }, pageAccessToken);
+    try {
+      const imageUrl = await getImageUrl(event, pageAccessToken);
+      const message = imageUrl 
+        ? `📷 | 𝐈𝐦𝐚𝐠𝐞 𝐔𝐑𝐋:\n${imageUrl}` 
+        : 'No image found in the reply.';
+      await sendMessage(senderId, { text: message }, pageAccessToken);
+    } catch (error) {
+      console.error('Error retrieving image URL:', error);
+      await sendMessage(senderId, { text: 'Error retrieving image URL.' }, pageAccessToken);
     }
-  }
+  },
 };
