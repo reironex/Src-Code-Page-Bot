@@ -23,7 +23,7 @@ const fetchLyrics = async (senderId, songName, pageAccessToken) => {
 
     const response = await find({
       song: songName,
-      engine: 'musixmatch', // You can change this to 'musixmatch' or 'youtube'
+      engine: 'youtube', // You can change this to 'musixmatch' or 'youtube'
       forceSearch: true,
     });
 
