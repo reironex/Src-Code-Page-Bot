@@ -2,15 +2,18 @@ const axios = require('axios');
 const { sendMessage } = require('../handles/sendMessage');
 
 const getImageUrl = async (event, token) => {
-  const mid = event?.message?.reply_to?.mid;
+  const mid = event?.message?.reply_to?.mid || event?.message?.mid;
   if (!mid) return null;
+
   try {
     const { data } = await axios.get(`https://graph.facebook.com/v22.0/${mid}/attachments`, {
       params: { access_token: token }
     });
-    return data?.data?.[0]?.image_data?.url || null;
+
+    const imageUrl = data?.data?.[0]?.image_data?.url || data?.data?.[0]?.file_url || null;
+    return imageUrl;
   } catch (err) {
-    console.error("Image URL fetch error:", err);
+    console.error("Image URL fetch error:", err?.response?.data || err.message);
     return null;
   }
 };
