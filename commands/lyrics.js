@@ -1,6 +1,6 @@
 const Genius = require("genius-lyrics");  
 const { sendMessage } = require('../handles/sendMessage');  
-const Client = new Genius.Client("6v-XTnCo26K83l7YX4-YcBoNInQMVRXqwnkR9RywGv20qFuulfJAW0wLlsKggeiF");
+const Client = new Genius.Client("sn53-LkcwNiBC_5QasB6Ex0FbosX_lfLWwJ6xpTJ_Lbuubw33Q8vujt_viUhtL2uOJ-ZpJWiGk4C0fiyDQOVQg");
 
 module.exports = {
   name: 'lyrics',
