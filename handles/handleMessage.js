@@ -24,11 +24,17 @@ async function handleMessage(event, pageAccessToken) {
     ? messageText.slice(prefix.length).split(' ')
     : messageText.split(' ');
 
+  const normalizedCommand = commandName.toLowerCase();
+
   try {
-    if (commands.has(commandName.toLowerCase())) {
-      await commands.get(commandName.toLowerCase()).execute(senderId, args, pageAccessToken, sendMessage);
+    console.log(`Received command: ${normalizedCommand}, args: ${args.join(' ')}`);
+
+    if (commands.has(normalizedCommand)) {
+      await commands.get(normalizedCommand).execute(senderId, args, pageAccessToken, event, sendMessage);
+    } else if (commands.has('ai')) {
+      await commands.get('ai').execute(senderId, [messageText], pageAccessToken, event, sendMessage);
     } else {
-      await commands.get('ai').execute(senderId, [messageText], pageAccessToken);
+      await sendMessage(senderId, { text: 'Unknown command and AI fallback is unavailable.' }, pageAccessToken);
     }
   } catch (error) {
     console.error(`Error executing command:`, error);
