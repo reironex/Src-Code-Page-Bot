@@ -38,7 +38,7 @@ module.exports = {
 
       const form = new FormData();
       form.append('key', IMGBB_KEY);
-      form.append('image', fs.createReadStream(tempPath));
+      form.append('image', fs.createReadStream(tempPath), { filename: 'image.jpg' });
 
       const uploadRes = await fetch('https://api.imgbb.com/1/upload', {
         method: 'POST',
