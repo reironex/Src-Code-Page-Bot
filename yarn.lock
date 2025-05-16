@@ -714,6 +714,13 @@ kuler@^2.0.0:
   resolved "https://registry.yarnpkg.com/kuler/-/kuler-2.0.0.tgz#e2c570a3800388fb44407e851531c1d670b061b3"
   integrity sha512-Xq9nH7KlWZmXAtodXDDRE7vs6DU1gTU8zYDHDiWLSip45Egwq3plLHzPn27NgvzL2r1LMPC1vdqh98sQxtqj4A==
 
+llyrics@^1.1.7:
+  version "1.1.7"
+  resolved "https://registry.yarnpkg.com/llyrics/-/llyrics-1.1.7.tgz#98aab64809ca45c55fbfb028b1c7825e9d76c633"
+  integrity sha512-5NVay4h84dB+d7Ep+vJXSIt1y+gWn38jVBuqkdWmBCcX/a7Pfjo2DubRdmAkzvp7m+mBi7AoTtOBGEtPb2hnEQ==
+  dependencies:
+    axios "^1.7.2"
+
 logform@^2.6.0, logform@^2.6.1:
   version "2.6.1"
   resolved "https://registry.yarnpkg.com/logform/-/logform-2.6.1.tgz#71403a7d8cae04b2b734147963236205db9b3df0"
