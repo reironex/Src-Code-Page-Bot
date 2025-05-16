@@ -17,6 +17,27 @@ const getImageUrl = async (event, token) => {
 
 const conversationHistory = {};
 
+const sendToChipp = async (senderId, payload, headers, pageAccessToken) => {
+  const { data } = await axios.post("https://app.chipp.ai/api/chat", payload, { headers });
+
+  const responseChunks = data.match(/"result":"(.*?)"/g)?.map(chunk =>
+    chunk.slice(10, -1).replace(/\\n/g, '\n')
+  ) || [];
+
+  const fullResponseText = responseChunks.join('');
+
+  if (!fullResponseText) throw new Error('Empty response from the AI.');
+
+  conversationHistory[senderId].push({ role: 'assistant', content: fullResponseText });
+
+  const formattedResponse = `💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒\n・───────────・\n${fullResponseText}\n・──── >ᴗ< ────・`;
+  const messageChunks = formattedResponse.match(/.{1,1900}/gs);
+
+  for (const chunk of messageChunks) {
+    await sendMessage(senderId, { text: chunk }, pageAccessToken);
+  }
+};
+
 module.exports = {
   name: 'ai',
   description: 'Interact with Mocha AI using text queries and image analysis',
@@ -52,18 +73,12 @@ module.exports = {
 
       conversationHistory[senderId].push({ role: 'user', content: prompt });
 
-      const chunkMessage = (message, maxLength) => {
-        const chunks = [];
-        for (let i = 0; i < message.length; i += maxLength) {
-          chunks.push(message.slice(i, i + maxLength));
-        }
-        return chunks;
-      };
-
       const imageUrl = await getImageUrl(event, pageAccessToken);
+
+      let payload;
       if (imageUrl) {
         const combinedPrompt = `${prompt}\nImage URL: ${imageUrl}`;
-        const payload = {
+        payload = {
           messages: [...conversationHistory[senderId], { role: 'user', content: combinedPrompt }],
           chatSessionId,
           toolInvocations: [
@@ -76,47 +91,15 @@ module.exports = {
             }
           ]
         };
-
-        const { data } = await axios.post("https://app.chipp.ai/api/chat", payload, { headers });
-
-        const responseChunks = data.match(/"result":"(.*?)"/g)?.map(chunk => chunk.slice(10, -1).replace(/\\n/g, '\n')) || [];
-        const fullResponseText = responseChunks.join('');
-
-        if (!fullResponseText) {
-          throw new Error('Empty response from the AI.');
-        }
-
-        conversationHistory[senderId].push({ role: 'assistant', content: fullResponseText });
-        const formattedResponse = `💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒\n・───────────・\n${fullResponseText}\n・──── >ᴗ< ────・`;
-
-        const messageChunks = chunkMessage(formattedResponse, 1900);
-        for (const chunk of messageChunks) {
-          await sendMessage(senderId, { text: chunk }, pageAccessToken);
-        }
-
       } else {
-        const payload = {
+        payload = {
           messages: [...conversationHistory[senderId]],
-          chatSessionId,
+          chatSessionId
         };
-
-        const { data } = await axios.post("https://app.chipp.ai/api/chat", payload, { headers });
-
-        const responseChunks = data.match(/0:"(.*?)"/g)?.map(chunk => chunk.slice(3, -1).replace(/\\n/g, '\n')) || [];
-        const fullResponseText = responseChunks.join('');
-
-        if (!fullResponseText) {
-          throw new Error('Empty response from the AI.');
-        }
-
-        conversationHistory[senderId].push({ role: 'assistant', content: fullResponseText });
-        const formattedResponse = `💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒\n・───────────・\n${fullResponseText}\n・──── >ᴗ< ────・`;
-
-        const messageChunks = chunkMessage(formattedResponse, 1900);
-        for (const chunk of messageChunks) {
-          await sendMessage(senderId, { text: chunk }, pageAccessToken);
-        }
       }
+
+      await sendToChipp(senderId, payload, headers, pageAccessToken);
+
     } catch (err) {
       if (err.response && err.response.status === 400) {
         console.error("Bad Request: Ignored.");
