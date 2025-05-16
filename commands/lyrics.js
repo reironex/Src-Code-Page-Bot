@@ -1,6 +1,6 @@
-const Genius = require("genius-lyrics");
-const { sendMessage } = require('../handles/sendMessage');
-const Client = new Genius.Client(); // Add your Genius API key if available.
+const Genius = require("genius-lyrics");  
+const { sendMessage } = require('../handles/sendMessage');  
+const Client = new Genius.Client("6v-XTnCo26K83l7YX4-YcBoNInQMVRXqwnkR9RywGv20qFuulfJAW0wLlsKggeiF");
 
 module.exports = {
   name: 'lyrics',
