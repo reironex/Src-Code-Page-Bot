@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const FormData = require('form-data');
+const { sendMessage } = require('../handles/sendMessage');
 
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
