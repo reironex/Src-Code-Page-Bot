@@ -1,12 +1,9 @@
-const fs = require('fs');
-const path = require('path');
-const FormData = require('form-data');
 const { sendMessage } = require('../handles/sendMessage');
 
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
-const API_KEY = 'fw_3ZZP4mu2QeZvFuN7NQA9UF5p'; // Fireworks API Key
-const IMGBB_KEY = '596919061a4512babcb009c50c65fca1'; // ImgBB API Key
+const API_KEY = 'fw_3ZZP4mu2QeZvFuN7NQA9UF5p';
+const IMGBB_KEY = '596919061a4512babcb009c50c65fca1';
 
 module.exports = {
   name: 'test',
@@ -33,21 +30,19 @@ module.exports = {
       });
 
       const buffer = Buffer.from(await res.arrayBuffer());
-      const tempPath = path.join(__dirname, 'temp.jpg');
-      fs.writeFileSync(tempPath, buffer);
+      const base64Image = buffer.toString('base64');
 
-      const form = new FormData();
-      form.append('key', IMGBB_KEY);
-      form.append('image', fs.createReadStream(tempPath), { filename: 'image.jpg' });
+      const params = new URLSearchParams();
+      params.append('key', IMGBB_KEY);
+      params.append('image', base64Image);
 
       const uploadRes = await fetch('https://api.imgbb.com/1/upload', {
         method: 'POST',
-        body: form,
-        headers: form.getHeaders(),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params,
       });
 
       const uploadData = await uploadRes.json();
-      fs.unlinkSync(tempPath);
 
       if (!uploadData?.data?.url) {
         console.error('ImgBB error:', uploadData);
