@@ -19,6 +19,7 @@ module.exports = {
     const prompt = args.join(' ');
 
     try {
+      // 1. Generate image from Fireworks
       const res = await fetch("https://api.fireworks.ai/inference/v1/workflows/accounts/fireworks/models/accounts/fireworks/models/flux-1-dev-fp8/text_to_image", {
         method: "POST",
         headers: {
@@ -30,11 +31,14 @@ module.exports = {
       });
 
       const buffer = Buffer.from(await res.arrayBuffer());
-      const base64Image = buffer.toString('base64');
+      const base64Image = buffer.toString('base64'); // No data:image/jpeg prefix
 
+      // 2. Upload to ImgBB
       const params = new URLSearchParams();
       params.append('key', IMGBB_KEY);
       params.append('image', base64Image);
+      params.append('name', 'image');
+      params.append('expiration', '600'); // Optional: 10 minutes
 
       const uploadRes = await fetch('https://api.imgbb.com/1/upload', {
         method: 'POST',
@@ -49,6 +53,7 @@ module.exports = {
         return sendMessage(senderId, { text: '❎ | Failed to upload image.' }, pageAccessToken);
       }
 
+      // 3. Send image URL to user
       await sendMessage(senderId, { text: uploadData.data.url }, pageAccessToken);
     } catch (err) {
       console.error('Image generation error:', err);
