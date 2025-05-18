@@ -3,11 +3,15 @@ const { sendMessage } = require('../handles/sendMessage');
 
 module.exports = {
   name: 'chipp',
-  description: 'Talk with Chipp AI',
-  usage: 'chipp [text]',
-  author: 'OpenAI + You',
-  execute: async (m, args, client) => {
-    if (!args.length) return sendMessage(client, m, 'Please provide a message.');
+  description: 'Ask Chipp AI a question or generate content',
+  usage: 'chipp <prompt>',
+  author: 'openai.com/chatgpt',
+
+  async execute(message, args) {
+    if (!args.length) {
+      return sendMessage(message, 'Please provide a message to send to Chipp AI.');
+    }
+
     const prompt = args.join(' ');
 
     try {
@@ -15,54 +19,62 @@ module.exports = {
         'https://app.chipp.ai/api/chat',
         {
           model: 'gpt-4o',
-          messages: [{ role: 'user', content: prompt }]
+          messages: [{ role: 'user', content: prompt }],
         },
         {
           headers: {
-            authority: 'app.chipp.ai',
-            accept: '*/*',
+            'authority': 'app.chipp.ai',
+            'accept': 'application/json',
             'accept-language': 'en-US,en;q=0.9',
-            authorization: 'Bearer sk-ant-75f1db6a-c8d7-4d0e-8191-3592fc233248',
+            'authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NTZjY2NhZGM1ZjQ0MzY3MjY3MjRiMzMiLCJpYXQiOjE3MTU4NTcwNzUsImV4cCI6MTc0NzM5MzY3NX0.qbB9Anq0spRTrG32cgnQIdo8dNaQ4zqxtfGLilfhcag',
             'content-type': 'application/json',
-            cookie: '__cf_bm=J6Qg1qWKe3cXk1FV3J0AZ8soV0HX0Il6AUw6hT3o5qc-1716008217-1.0.1.1-rlMT9Z7ph6KYr1RJuiybB.PaTx_dMde94RRO5_cXALeP1LPSNVHcAHThvznbrDc7Tt_8Z1_2eA1Ju9J9O9g',
-            origin: 'https://app.chipp.ai',
-            referer: 'https://app.chipp.ai/',
-            'user-agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36'
+            'cookie': '__Host-next-auth.csrf-token=8a72c5c0915fd76436997d5c86f2c76dfca3e6f39fa7c3ef621dbec4e58a0651%7Cea515ad8bd0b2cf5451e1bd1c671bdc6b64d09f8aeeb32a2f8c22832c2e6e730; __Secure-next-auth.session-token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJfaWQiOiI2NTZjY2NhZGM1ZjQ0MzY3MjY3MjRiMzMiLCJpYXQiOjE3MTU4NTcwNzUsImV4cCI6MTc0NzM5MzY3NX0.qbB9Anq0spRTrG32cgnQIdo8dNaQ4zqxtfGLilfhcag',
+            'origin': 'https://app.chipp.ai',
+            'referer': 'https://app.chipp.ai/',
+            'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+            'sec-ch-ua-mobile': '?1',
+            'sec-ch-ua-platform': '"Android"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-origin',
+            'user-agent': 'Mozilla/5.0 (Linux; Android 10; SM-A107F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36'
           }
         }
       );
 
       const data = response.data;
+      const choice = data?.choices?.[0];
 
-      if (!data || !data.choices || !data.choices.length) {
-        return sendMessage(client, m, 'No response from Chipp AI.');
+      if (!choice) {
+        return sendMessage(message, 'No response received from Chipp AI.');
       }
 
-      const choice = data.choices[0];
-
-      if (choice.tool_calls && choice.tool_calls.length > 0) {
+      if (choice.tool_calls?.length > 0) {
         const tool = choice.tool_calls[0];
-        const { toolName, result } = tool;
+        const name = tool.toolName;
+        const result = tool.result;
 
-        switch (toolName) {
-          case 'generateImage':
-            return sendMessage(client, m, result.imageUrl || 'No image returned.');
-          case 'browseWeb':
-            return sendMessage(client, m, result.answerBox?.answer || 'No result found from web.');
-          case 'analyzeImage':
-            return sendMessage(client, m, result || 'No description available.');
-          default:
-            return sendMessage(client, m, `Tool "${toolName}" is not supported.`);
+        if (name === 'generateImage') {
+          return sendMessage(message, result?.imageUrl || 'Image URL not found.');
         }
-      } else if (choice.message?.content) {
-        return sendMessage(client, m, choice.message.content);
-      } else {
-        return sendMessage(client, m, 'Received empty response from Chipp AI.');
+
+        if (name === 'browseWeb') {
+          return sendMessage(message, result?.answerBox?.answer || 'No answer found from web search.');
+        }
+
+        if (name === 'analyzeImage') {
+          return sendMessage(message, result || 'Image analysis result not found.');
+        }
+
+        return sendMessage(message, `[${name}] Tool response:\n` + JSON.stringify(result, null, 2));
       }
+
+      const text = choice.message?.content || 'No message content found.';
+      return sendMessage(message, text);
 
     } catch (err) {
-      console.error('[Chipp AI Error]', err.message);
-      return sendMessage(client, m, 'An error occurred while contacting Chipp AI.');
+      console.error('Chipp AI Error:', err?.response?.data || err.message);
+      return sendMessage(message, 'An error occurred while contacting Chipp AI.');
     }
   }
 };
