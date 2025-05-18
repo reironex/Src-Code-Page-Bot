@@ -1,36 +1,21 @@
-const axios = require('axios');
-const { sendMessage } = require('../handles/sendMessage');
+const axios = require('axios'); const { sendMessage } = require('../handles/sendMessage');
 
-const getImageUrl = async (event, token) => {
-  const mid = event?.message?.reply_to?.mid || event?.message?.mid;
-  if (!mid) return null;
+const getImageUrl = async (event, token) => { const mid = event?.message?.reply_to?.mid || event?.message?.mid; if (!mid) return null;
 
-  try {
-    const { data } = await axios.get(`https://graph.facebook.com/v22.0/${mid}/attachments`, {
-      params: { access_token: token }
-    });
+try { const { data } = await axios.get(https://graph.facebook.com/v22.0/${mid}/attachments, { params: { access_token: token } });
 
-    const imageUrl = data?.data?.[0]?.image_data?.url || data?.data?.[0]?.file_url || null;
-    return imageUrl;
-  } catch (err) {
-    console.error("Image URL fetch error:", err?.response?.data || err.message);
-    return null;
-  }
-};
+const imageUrl = data?.data?.[0]?.image_data?.url || data?.data?.[0]?.file_url || null;
+return imageUrl;
+
+} catch (err) { console.error("Image URL fetch error:", err?.response?.data || err.message); return null; } };
 
 const conversationHistory = {};
 
-module.exports = {
-  name: 'test',
-  description: 'Interact with Mocha AI using text queries and image analysis',
-  usage: 'ask a question, or send a reply question to an image.',
-  author: 'Coffee',
+module.exports = { name: 'test', description: 'Interact with Mocha AI using text queries and image analysis', usage: 'ask a question, or send a reply question to an image.', author: 'Coffee',
 
-  async execute(senderId, args, pageAccessToken, event) {
-    const prompt = args.join(' ').trim() || 'Hello';
-    const chatSessionId = "fc053908-a0f3-4a9c-ad4a-008105dcc360";
+async execute(senderId, args, pageAccessToken, event) { const prompt = args.join(' ').trim() || 'Hello'; const chatSessionId = "fc053908-a0f3-4a9c-ad4a-008105dcc360";
 
-    const headers = {
+const headers = {
       "Content-Type": "application/json",
       "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
       "Sec-CH-UA-Platform": "Android",
@@ -49,96 +34,82 @@ module.exports = {
       "Priority": "u=1, i",
     };
 
-    try {
-      if (!conversationHistory[senderId]) {
-        conversationHistory[senderId] = [];
-      }
+try {
+  if (!conversationHistory[senderId]) {
+    conversationHistory[senderId] = [];
+  }
 
-      conversationHistory[senderId].push({ role: 'user', content: prompt });
+  conversationHistory[senderId].push({ role: 'user', content: prompt });
 
-      const chunkMessage = (message, maxLength) => {
-        const chunks = [];
-        for (let i = 0; i < message.length; i += maxLength) {
-          chunks.push(message.slice(i, i + maxLength));
-        }
-        return chunks;
-      };
-
-      const imageUrl = await getImageUrl(event, pageAccessToken);
-
-      let payload;
-
-      if (imageUrl) {
-        const combinedPrompt = `${prompt}\nImage URL: ${imageUrl}`;
-        payload = {
-          messages: [...conversationHistory[senderId], { role: 'user', content: combinedPrompt }],
-          chatSessionId,
-          toolInvocations: [
-            {
-              toolName: 'analyzeImage',
-              args: {
-                userQuery: prompt,
-                imageUrls: [imageUrl],
-              }
-            }
-          ]
-        };
-      } else {
-        payload = {
-          messages: [...conversationHistory[senderId]],
-          chatSessionId,
-        };
-      }
-
-      const { data } = await axios.post("https://app.chipp.ai/api/chat", payload, { headers });
-
-      // Parse response text (your original parsing method)
-      // It looks like your response comes as a string with chunks embedded - adjust if needed
-      const responseTextChunks = data.match(/"result":"(.*?)"/g)?.map(chunk => chunk.slice(10, -1).replace(/\\n/g, '\n')) 
-        || data.match(/0:"(.*?)"/g)?.map(chunk => chunk.slice(3, -1).replace(/\\n/g, '\n')) || [];
-
-      const fullResponseText = responseTextChunks.join('');
-
-      // Extract toolInvocations from the response message if present
-      // Your response might differ, so adjust the path accordingly
-      const toolCalls = data.choices?.[0]?.message?.toolInvocations || [];
-
-      // Handle tool calls first (give priority)
-      for (const toolCall of toolCalls) {
-        if (toolCall.toolName === 'generateImage' && toolCall.state === 'result' && toolCall.result) {
-          await sendMessage(senderId, { text: `Here is the generated image: ${toolCall.result}` }, pageAccessToken);
-          return;
-        }
-        if (toolCall.toolName === 'analyzeImage' && toolCall.state === 'result' && toolCall.result) {
-          await sendMessage(senderId, { text: `Image analysis result: ${toolCall.result}` }, pageAccessToken);
-          return;
-        }
-        if (toolCall.toolName === 'browseWeb' && toolCall.state === 'result' && toolCall.result) {
-          await sendMessage(senderId, { text: `Search result: ${toolCall.result.answerBox?.answer || 'No direct answer found.'}` }, pageAccessToken);
-          return;
-        }
-        // Add more tools here as needed
-      }
-
-      // If no tool call was handled, reply with AI text response
-      if (!fullResponseText) {
-        throw new Error('Empty response from the AI.');
-      }
-
-      conversationHistory[senderId].push({ role: 'assistant', content: fullResponseText });
-      const formattedResponse = `💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒\n・───────────・\n${fullResponseText}\n・──── >ᴗ< ────・`;
-
-      const messageChunks = chunkMessage(formattedResponse, 1900);
-      for (const chunk of messageChunks) {
-        await sendMessage(senderId, { text: chunk }, pageAccessToken);
-      }
-
-    } catch (err) {
-      if (err.response && err.response.status === 400) {
-        console.error("Bad Request: Ignored.");
-      } else {
-        console.error("Error:", err);
-      }
+  const chunkMessage = (message, maxLength) => {
+    const chunks = [];
+    for (let i = 0; i < message.length; i += maxLength) {
+      chunks.push(message.slice(i, i + maxLength));
     }
-  },
-};
+    return chunks;
+  };
+
+  const imageUrl = await getImageUrl(event, pageAccessToken);
+
+  let payload;
+  if (imageUrl) {
+    const combinedPrompt = `${prompt}\nImage URL: ${imageUrl}`;
+    payload = {
+      messages: [...conversationHistory[senderId], { role: 'user', content: combinedPrompt }],
+      chatSessionId,
+      toolInvocations: [
+        {
+          toolName: 'analyzeImage',
+          args: {
+            userQuery: prompt,
+            imageUrls: [imageUrl],
+          }
+        }
+      ]
+    };
+  } else {
+    payload = {
+      messages: [...conversationHistory[senderId]],
+      chatSessionId,
+    };
+  }
+
+  const { data } = await axios.post("https://app.chipp.ai/api/chat", payload, { headers });
+
+  const toolCalls = data?.toolResults || [];
+  for (const toolCall of toolCalls) {
+    if (toolCall.toolName === 'generateImage' && toolCall.state === 'result' && toolCall.result) {
+      await sendMessage(senderId, { text: `Here is the generated image: ${toolCall.result}` }, pageAccessToken);
+      return;
+    }
+    if (toolCall.toolName === 'analyzeImage' && toolCall.state === 'result' && toolCall.result) {
+      await sendMessage(senderId, { text: `Image analysis result: ${toolCall.result}` }, pageAccessToken);
+      return;
+    }
+    if (toolCall.toolName === 'browseWeb' && toolCall.state === 'result' && toolCall.result) {
+      await sendMessage(senderId, { text: `Search result: ${toolCall.result.answerBox?.answer || 'No direct answer found.'}` }, pageAccessToken);
+      return;
+    }
+  }
+
+  const fullResponseText = data?.result || '';
+  if (!fullResponseText) throw new Error('Empty response from the AI.');
+
+  conversationHistory[senderId].push({ role: 'assistant', content: fullResponseText });
+
+  const formattedResponse = `💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒\n・───────────・\n${fullResponseText}\n・──── >ᴗ< ────・`;
+  const messageChunks = chunkMessage(formattedResponse, 1900);
+  for (const chunk of messageChunks) {
+    await sendMessage(senderId, { text: chunk }, pageAccessToken);
+  }
+
+} catch (err) {
+  if (err.response && err.response.status === 400) {
+    console.error("Bad Request: Ignored.");
+  } else {
+    console.error("Error:", err);
+  }
+}
+
+}, };
+
