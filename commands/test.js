@@ -32,12 +32,45 @@ async function handleQuestion(senderId, prompt, pageAccessToken) {
       }
     );
 
+    // Check for tool calls in the response
+    if (data.toolCalls && data.toolCalls.length > 0) {
+      for (const toolCall of data.toolCalls) {
+        if (toolCall.toolName === 'generateImage' && toolCall.result) {
+          const imageUrlMatch = toolCall.result.match(/(https?:\/\/[^\s)]+)/);
+          if (imageUrlMatch && imageUrlMatch[1]) {
+            await sendMessage(senderId, {
+              attachment: {
+                type: 'image',
+                payload: { url: imageUrlMatch[1] }
+              }
+            }, pageAccessToken);
+            return;
+          }
+        }
+        if (toolCall.toolName === 'browseWeb' && toolCall.result) {
+          const finalAnswer = data.choices?.[0]?.message?.content;
+          if (finalAnswer) {
+            await sendMessage(senderId, { text: finalAnswer }, pageAccessToken);
+            return;
+          }
+        }
+        if (toolCall.toolName === 'analyzeImage' && toolCall.result) {
+          // toolCall.result is the analysis text of the image
+          await sendMessage(senderId, { text: toolCall.result }, pageAccessToken);
+          return;
+        }
+      }
+    }
+
+    // If no tool calls or unrecognized tool, send normal text response
     const response = formatResponse(data.choices?.[0]?.message?.content || 'No reply.');
     await sendMessage(senderId, { text: response }, pageAccessToken);
+
   } catch (err) {
     console.error('Chipp AI error:', err?.response?.data || err.message);
     await sendMessage(senderId, { text: "Error: Unable to process your question." }, pageAccessToken);
   }
 }
 
-const formatResponse = content => `💬 | 𝙲𝚑𝚒𝚙𝚙 𝙰𝚒\n・────────────・\n${content}\n・──── >ᴗ< ─────・`;
+const formatResponse = content =>
+  `💬 | 𝙲𝚑𝚒𝚙𝚙 𝙰𝚒\n・────────────・\n${content}\n・──── >ᴗ< ─────・`;
