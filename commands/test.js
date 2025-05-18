@@ -10,7 +10,8 @@ const getImageUrl = async (event, token) => {
       params: { access_token: token }
     });
 
-    return data?.data?.[0]?.image_data?.url || data?.data?.[0]?.file_url || null;
+    const imageUrl = data?.data?.[0]?.image_data?.url || data?.data?.[0]?.file_url || null;
+    return imageUrl;
   } catch (err) {
     console.error("Image URL fetch error:", err?.response?.data || err.message);
     return null;
@@ -35,7 +36,7 @@ module.exports = {
       "Sec-CH-UA-Platform": "Android",
       "Sec-CH-UA": '"Brave";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
       "Sec-CH-UA-Mobile": "?1",
-      "Accept": "/",
+      "Accept": "*/*",
       "Sec-GPC": "1",
       "Accept-Language": "en-US,en;q=0.8",
       "Origin": "https://app.chipp.ai",
@@ -44,7 +45,7 @@ module.exports = {
       "Sec-Fetch-Dest": "empty",
       "Referer": "https://app.chipp.ai/applications/35489/build?cacheBust=1737088263915",
       "Accept-Encoding": "gzip, deflate, br, zstd",
-      "Cookie": "GAESA=CooBMDBjYTM2OTVkMjBiNTE5MWY3NzFkZTk2MTZjNzU3NjFkZDMxNTA2MDUwNGViMzA0MzUzNGIxZDM2MzIwMmZiNDEzZjA0MGEwNWNhYjhiYjMzMTRjMWRkZGE2ZTMxMGVjYWExNTdkNmNiMjFkNWViMzc2YWYxODg5ZjQ0YWIwZWRmMWIwZjNjNGE1EIbvm5THMg; __Host-next-auth.csrf-token=54510ff606af01782c0d6c08c39a96fb421ca5e0bfe58ae323702e5b2daab8b9%7C67f259a94de43fc5157335500f498153ad55759cd7e8350e1c36a98073db160a; __Secure-next-auth.callback-url=https%3A%2F%2Fapp.chipp.ai; ph_phc_58R4nRj6BbHvFBIwUiMlHyD8X7B5xrup5HMX1EDFsFw_posthog=%7B%22distinct_id%22%3A%22mjaymjas%40gmail.com%22%2C%22%24sesid%22%3A%5B1737088291942%2C%2201947286-f553-74f6-8a85-c5ed3e3815c8%22%2C1737088234835%5D%2C%22%24epp%22%3Atrue%7D; __Secure-next-auth.session-token=eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..dvZRGwF9T9nrJ8nX.Zezd6eR8u8MQhtSMghHVdbCHu3xFW4CXq3aHXLxw8QNC976iR3D797jF5u1Xm2RRv0TBy76El39mBltfXn2aa_7YShF-HztxeglSoBlxFBeI6OBCwDECWt_wMxqVaXeVnuWT60yVzH54cd3Xqq09kE3mTszWG9nGH5CXHYpghmUZtVfEhQKTgW139A86U42N2xR3VONMo_QO2kYpUZlCgKvubCsJv9KkATlz2tZwQeR1EHagYvlC8YQtI4zIUbaNcoDXxAmIpFR7J0GSQL3oi4akOk-pKhHFDa3KRLkw6e1WA7fvAgc7dXPaAbu7-ZfVVpcvP_uDi54UNCH-awQK4CVkR6Oqpx3nK-2kdd7DDxu3qRzmw0ItZCahU4Q.V4aAtYuxd2mCQZ_qLkKE2Q",
+      "Cookie": "GAESA=CooBMDBjYTM2OTVkMjBiNTE5MWY3NzFkZTk2MTZjNzU3NjFkZDMxNTA2MDUwNGViMzA0MzUzNGIxZDM2MzIwMmZiNDEzZjA0MGEwNWNhYjhiYjMzMTRjMWRkZGE2ZTMxMGVjYWExNTdkNmNiMjFkNWViMzc2YWYxODg5ZjQ0YWIwZWRmMWIwZjNjNGE1EIbvm5THMg; __Host-next-auth.csrf-token=54510ff606af01782c0d6c08c39a96fb421ca5e0bfe58ae323702e5b2daab8b9%7C67f259a94de43fc5157335500f498153ad55759cd7e8350e1c36a98073db160a; __Secure-next-auth.callback-url=https%3A%2F%2Fapp.chipp.ai; ph_phc_58R4nRj6BbHvFBIwUiMlHyD8X7B5xrup5HMX1EDFsFw_posthog=%7B%22distinct_id%22%3A%22mjaymjas%40gmail.com%22%2C%22%24sesid%22%3A%5B1737088291942%2C%2201947286-f553-74f6-8a85-c5ed3e3815c8%22%2C1737088234835%5D%2C%22%24epp%22%3Atrue%7D; __Secure-next-auth.session-token=eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..dvZRGwF9T9nrJ8nX.Zezd6eR8u8MQhtSMghHVdbCHu3xFW4CXq3aHXLxw8QNC976iR3D797jF5u1Xm2RRv0TBy76El39mBltfXn2aa_7YShF-HztxeglSoBlxFBeI6OBCwDECWt_wMxqVaXeVnuWT60yVzH54cd3Xqq09kE3mTszWG9nGH5CXHYpghmUZtVfEhQKTgW139A86U42N2xR3VONMo_QO2kYpUZlCgKvubCsJv9KkATlz2tZwQeR1EHagYvlC8YQtI4zIUbaNcoDXxAmIpFR7J0GSQL3oi4akOk-pKhHFDa3KRLkw6e1WA7fvAgc7dXPaAbu7-ZfVVpcvP_uDi54UNCH-awQK4CVkR6Oqpx3nK-2kdd7DDxu3qRzmw0ItZCahU4Q.V4aAtYuxd2mCQZ_qLkKE2Q", 
       "Priority": "u=1, i",
     };
 
@@ -54,14 +55,6 @@ module.exports = {
       }
 
       conversationHistory[senderId].push({ role: 'user', content: prompt });
-
-      const chunkMessage = (message, maxLength) => {
-        const chunks = [];
-        for (let i = 0; i < message.length; i += maxLength) {
-          chunks.push(message.slice(i, i + maxLength));
-        }
-        return chunks;
-      };
 
       const imageUrl = await getImageUrl(event, pageAccessToken);
 
@@ -91,26 +84,24 @@ module.exports = {
 
       const { data } = await axios.post("https://app.chipp.ai/api/chat", payload, { headers });
 
-      // Handle fragmented text response with key "0"
-      const fragments = typeof data === 'string'
-        ? data.split('\n').filter(line => line.startsWith('0:')).map(line => line.replace(/^0:\"?|\"?$/g, ''))
-        : [];
+      const responseTextChunks = data.match(/"result":"(.*?)"/g)?.map(chunk => chunk.slice(10, -1).replace(/\\n/g, '\n')) 
+        || data.match(/0:"(.*?)"/g)?.map(chunk => chunk.slice(3, -1).replace(/\\n/g, '\n')) || [];
 
-      const fullResponseText = fragments.join('');
+      const fullResponseText = responseTextChunks.join('');
 
       const toolCalls = data.choices?.[0]?.message?.toolInvocations || [];
 
       for (const toolCall of toolCalls) {
         if (toolCall.toolName === 'generateImage' && toolCall.state === 'result' && toolCall.result) {
-          await sendMessage(senderId, { text: `Here is the generated image: ${toolCall.result}` }, pageAccessToken);
+          await sendMessage(senderId, { text: toolCall.result }, pageAccessToken);
           return;
         }
         if (toolCall.toolName === 'analyzeImage' && toolCall.state === 'result' && toolCall.result) {
-          await sendMessage(senderId, { text: `Image analysis result: ${toolCall.result}` }, pageAccessToken);
+          await sendMessage(senderId, { text: toolCall.result }, pageAccessToken);
           return;
         }
         if (toolCall.toolName === 'browseWeb' && toolCall.state === 'result' && toolCall.result) {
-          await sendMessage(senderId, { text: `Search result: ${toolCall.result.answerBox?.answer || 'No direct answer found.'}` }, pageAccessToken);
+          await sendMessage(senderId, { text: toolCall.result.answerBox?.answer || 'No direct answer found.' }, pageAccessToken);
           return;
         }
       }
@@ -120,21 +111,19 @@ module.exports = {
       }
 
       conversationHistory[senderId].push({ role: 'assistant', content: fullResponseText });
-      const formattedResponse = `💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒\n・───────────・\n${fullResponseText}\n・──── >ᴗ< ────・`;
 
-      const messageChunks = chunkMessage(formattedResponse, 1900);
-      for (const chunk of messageChunks) {
-        await sendMessage(senderId, { text: chunk }, pageAccessToken);
-      }
+      const urlMatch = fullResponseText.match(/https?:\/\/[^\s)]+/);
+      const cleanResponse = urlMatch ? urlMatch[0] : fullResponseText;
+
+      await sendMessage(senderId, { text: cleanResponse }, pageAccessToken);
 
     } catch (err) {
       if (err.response && err.response.status === 400) {
         console.error("Bad Request: Ignored.");
       } else {
         console.error("Error:", err);
+        await sendMessage(senderId, { text: 'Something went wrong while processing your request.' }, pageAccessToken);
       }
     }
   },
 };
-
-
