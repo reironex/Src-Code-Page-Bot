@@ -102,12 +102,14 @@ module.exports = {
       // Process tool invocations
       for (const toolCall of toolCalls) {
         if (toolCall.toolName === 'generateImage' && toolCall.state === 'result' && toolCall.result) {
+          // Extract description and URL cleanly
           const descMatch = toolCall.result.match(/(?:Image|Generated Image):\s*(.+?)(?:https?:\/\/)/i);
           const description = descMatch ? descMatch[1].trim() : 'Generated image';
           const urlMatch = toolCall.result.match(/https?:\/\/\S+/);
           const url = urlMatch ? urlMatch[0] : '';
 
-          const formattedImageReply = `💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒\n・───────────・\nGenerated Image: ${description}\n\n${url}\n・──── >ᴗ< ────・`;
+          // Compose exactly as requested, no extra newlines
+          const formattedImageReply = `💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒 ・───────────・ Generated Image: ${description}\n\n${url} ・──── >ᴗ< ────・`;
           await sendMessage(senderId, { text: formattedImageReply }, pageAccessToken);
           return;
         }
@@ -119,22 +121,11 @@ module.exports = {
 
         if (toolCall.toolName === 'browseWeb' && toolCall.state === 'result' && toolCall.result) {
           // The browseWeb result can be structured, but here we just send the full text answer from the result
-          const browseResultChunks = Object.values(toolCall.result).flatMap(r =>
-            typeof r === 'string' ? [r] :
-            typeof r === 'object' ? Object.values(r).flatMap(x => (typeof x === 'string' ? [x] : [])) :
-            []
-          );
-          // The above is just a fallback. We'll instead try this simpler approach:
-
-          // Often result.answerBox.answer exists
           let answerText = '';
           if (toolCall.result.answerBox && toolCall.result.answerBox.answer) {
             answerText = toolCall.result.answerBox.answer;
-          } else {
-            // fallback to any text in organic results snippets
-            if (Array.isArray(toolCall.result.organic)) {
-              answerText = toolCall.result.organic.map(o => o.snippet).filter(Boolean).join('\n\n');
-            }
+          } else if (Array.isArray(toolCall.result.organic)) {
+            answerText = toolCall.result.organic.map(o => o.snippet).filter(Boolean).join('\n\n');
           }
 
           const finalReply = `💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒\n・───────────・\n${fullResponseText}\n\nBrowse result:\n${answerText}\n・──── >ᴗ< ────・`;
