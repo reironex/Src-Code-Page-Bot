@@ -56,6 +56,14 @@ module.exports = {
 
       conversationHistory[senderId].push({ role: 'user', content: prompt });
 
+      const chunkMessage = (message, maxLength) => {
+        const chunks = [];
+        for (let i = 0; i < message.length; i += maxLength) {
+          chunks.push(message.slice(i, i + maxLength));
+        }
+        return chunks;
+      };
+
       const imageUrl = await getImageUrl(event, pageAccessToken);
 
       let payload;
@@ -84,45 +92,51 @@ module.exports = {
 
       const { data } = await axios.post("https://app.chipp.ai/api/chat", payload, { headers });
 
+      const toolCalls = data.choices?.[0]?.message?.toolInvocations || [];
+
+      for (const toolCall of toolCalls) {
+        if (toolCall.toolName === 'generateImage' && toolCall.state === 'result' && toolCall.result) {
+          const match = toolCall.result.match(/Generated Image: (.+?)(https?:\/\/[^\s)]+)/);
+          if (match) {
+            const [, description, imageUrl] = match;
+            const imageMessage = `💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒\n・───────────・\nGenerated Image: ${description}\n\n${imageUrl}\n・──── >ᴗ< ────・`;
+            await sendMessage(senderId, { text: imageMessage }, pageAccessToken);
+          } else {
+            await sendMessage(senderId, { text: `Generated image: ${toolCall.result}` }, pageAccessToken);
+          }
+          return;
+        }
+        if (toolCall.toolName === 'analyzeImage' && toolCall.state === 'result' && toolCall.result) {
+          await sendMessage(senderId, { text: `Image analysis result: ${toolCall.result}` }, pageAccessToken);
+          return;
+        }
+        if (toolCall.toolName === 'browseWeb' && toolCall.state === 'result' && toolCall.result) {
+          await sendMessage(senderId, { text: `Search result: ${toolCall.result.answerBox?.answer || 'No direct answer found.'}` }, pageAccessToken);
+          return;
+        }
+      }
+
       const responseTextChunks = data.match(/"result":"(.*?)"/g)?.map(chunk => chunk.slice(10, -1).replace(/\\n/g, '\n')) 
         || data.match(/0:"(.*?)"/g)?.map(chunk => chunk.slice(3, -1).replace(/\\n/g, '\n')) || [];
 
       const fullResponseText = responseTextChunks.join('');
 
-      const toolCalls = data.choices?.[0]?.message?.toolInvocations || [];
-
-      for (const toolCall of toolCalls) {
-        if (toolCall.toolName === 'generateImage' && toolCall.state === 'result' && toolCall.result) {
-          await sendMessage(senderId, { text: toolCall.result }, pageAccessToken);
-          return;
-        }
-        if (toolCall.toolName === 'analyzeImage' && toolCall.state === 'result' && toolCall.result) {
-          await sendMessage(senderId, { text: toolCall.result }, pageAccessToken);
-          return;
-        }
-        if (toolCall.toolName === 'browseWeb' && toolCall.state === 'result' && toolCall.result) {
-          await sendMessage(senderId, { text: toolCall.result.answerBox?.answer || 'No direct answer found.' }, pageAccessToken);
-          return;
-        }
-      }
-
-      if (!fullResponseText) {
-        throw new Error('Empty response from the AI.');
-      }
+      if (!fullResponseText) throw new Error('Empty response from the AI.');
 
       conversationHistory[senderId].push({ role: 'assistant', content: fullResponseText });
+      const formattedResponse = `💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒\n・───────────・\n${fullResponseText}\n・──── >ᴗ< ────・`;
 
-      const urlMatch = fullResponseText.match(/https?:\/\/[^\s)]+/);
-      const cleanResponse = urlMatch ? urlMatch[0] : fullResponseText;
-
-      await sendMessage(senderId, { text: cleanResponse }, pageAccessToken);
+      const messageChunks = chunkMessage(formattedResponse, 1900);
+      for (const chunk of messageChunks) {
+        await sendMessage(senderId, { text: chunk }, pageAccessToken);
+      }
 
     } catch (err) {
       if (err.response && err.response.status === 400) {
         console.error("Bad Request: Ignored.");
       } else {
         console.error("Error:", err);
-        await sendMessage(senderId, { text: 'Something went wrong while processing your request.' }, pageAccessToken);
+        await sendMessage(senderId, { text: 'An error occurred while processing your request.' }, pageAccessToken);
       }
     }
   },
