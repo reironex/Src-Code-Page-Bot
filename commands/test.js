@@ -111,7 +111,7 @@ module.exports = {
           return;
         }
         if (toolCall.toolName === 'browseWeb' && toolCall.state === 'result' && toolCall.result) {
-          await sendMessage(senderId, { text: `Search result: ${toolCall.result.answerBox?.answer || 'No direct answer found.'}` }, pageAccessToken);
+          await sendMessage(senderId, { text: `Search result: ${toolCall.result}` }, pageAccessToken);
           return;
         }
       }
