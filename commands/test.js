@@ -1,65 +1,76 @@
 const axios = require('axios');
-const { sendMessage } = require('../handles/sendMessage');
 
 module.exports = {
-  name: 'test',
-  description: 'Interact with Chipp AI.',
-  usage: '\ntest [question]',
+  name: 'chipp',
+  description: 'Interact with Chipp AI sending only the latest prompt.',
+  usage: '\nchipp [your message]',
   author: 'coffee',
 
-  async execute(senderId, args, pageAccessToken, event) {
-    if (!event) return sendMessage(senderId, { text: "Error: Unable to process the request." }, pageAccessToken);
-    await handleQuestion(senderId, args.join(' '), pageAccessToken);
+  async execute(senderId, args, pageAccessToken) {
+    const prompt = args.join(' ').trim();
+    if (!prompt) return sendMessage(senderId, { text: "Please enter a message." }, pageAccessToken);
+
+    try {
+      // Send only the latest user message as the conversation
+      const response = await callChippAI([{ role: 'user', content: prompt }]);
+
+      if (!response || !response.messages) {
+        console.error("No assistant reply found");
+        return sendMessage(senderId, { text: "No reply from assistant." }, pageAccessToken);
+      }
+
+      const lastMsg = response.messages[response.messages.length - 1];
+
+      // Check if the assistant sent any tool results like images
+      if (lastMsg.toolInvocations && lastMsg.toolInvocations.length) {
+        for (const toolCall of lastMsg.toolInvocations) {
+          if (toolCall.toolName === 'generateImage' && toolCall.state === 'result' && toolCall.result?.imageUrl) {
+            await sendMessage(senderId, { image: { url: toolCall.result.imageUrl } }, pageAccessToken);
+            return;
+          }
+          // Add other tool handling if needed here
+        }
+      }
+
+      // Otherwise send text reply
+      const textReply = lastMsg.content || "No content from assistant.";
+      await sendMessage(senderId, { text: textReply }, pageAccessToken);
+
+    } catch (error) {
+      console.error("Chipp AI call failed:", error?.response?.data || error.message);
+      await sendMessage(senderId, { text: "Failed to contact Chipp AI." }, pageAccessToken);
+    }
   }
 };
 
-async function handleQuestion(senderId, prompt, pageAccessToken) {
-  if (!prompt) return sendMessage(senderId, { text: "I'm here to help! Please ask a question." }, pageAccessToken);
+async function callChippAI(messages) {
+  const headers = {
+    ':authority': 'app.chipp.ai',
+    'content-type': 'application/json',
+    'sec-ch-ua-platform': '"Android"',
+    'user-agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Mobile Safari/537.36',
+    'sec-ch-ua': '"Chromium";v="136", "Brave";v="136", "Not.A/Brand";v="99"',
+    'sec-ch-ua-mobile': '?1',
+    'accept': '*/*',
+    'sec-gpc': '1',
+    'accept-language': 'en-US,en;q=0.5',
+    'origin': 'https://app.chipp.ai',
+    'sec-fetch-site': 'same-origin',
+    'sec-fetch-mode': 'cors',
+    'sec-fetch-dest': 'empty',
+    'referer': 'https://app.chipp.ai/app_builder/67586/build?cacheBust=1747590080994',
+    'accept-encoding': 'gzip, deflate, br, zstd',
+    'cookie': '__Host-next-auth.csrf-token=your_token_here; __Secure-next-auth.callback-url=https%3A%2F%2Fapp.chipp.ai; chatSessionId_67586=some_id; __Secure-next-auth.session-token=your_session_token; correlationId=your_correlation_id',
+    'priority': 'u=1, i'
+  };
 
-  try {
-    const { data } = await axios.post(
-      'https://app.chipp.ai/api/v1/chat/completions',
-      {
-        model: 'kh-67586',
-        messages: [{ role: 'user', content: prompt }],
-        stream: false
-      },
-      {
-        headers: {
-          'Authorization': 'Bearer live_34456586-aa0b-48f2-b476-a4313ee42fc7',
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+  const payload = { messages };
 
-    let content = data.choices?.[0]?.message?.content?.trim();
-
-    // If content is empty, try to use tool result
-    if (!content && Array.isArray(data.choices?.[0]?.message?.toolCalls)) {
-      const results = [];
-
-      for (const call of data.choices[0].message.toolCalls) {
-        if (call.toolName === 'generateImage' && call.result?.includes('http')) {
-          results.push(call.result);
-        } else if (call.toolName === 'browseWeb' && typeof call.result === 'object') {
-          const entries = call.result.organic || [];
-          const summary = entries.map(e => `• [${e.title}](${e.link})\n  ${e.snippet}`).join('\n\n');
-          results.push(`Here are the results I found:\n\n${summary}`);
-        } else if (call.toolName === 'analyzeImage' && typeof call.result === 'string') {
-          results.push(call.result);
-        }
-      }
-
-      content = results.join('\n\n').trim() || 'No reply.';
-    }
-
-    const response = formatResponse(content || 'No reply.');
-    await sendMessage(senderId, { text: response }, pageAccessToken);
-
-  } catch (err) {
-    console.error('Chipp AI error:', err?.response?.data || err.message);
-    await sendMessage(senderId, { text: "Error: Unable to process your question." }, pageAccessToken);
-  }
+  const { data } = await axios.post('https://app.chipp.ai/api/chat', payload, { headers });
+  return data;
 }
 
-const formatResponse = content => `💬 | 𝙲𝚑𝚒𝚙𝚙 𝙰𝚒\n・────────────・\n${content}\n・──── >ᴗ< ─────・`;
+async function sendMessage(senderId, messagePayload, pageAccessToken) {
+  // Your implementation to send message to user here
+  console.log(`Sending to ${senderId}:`, messagePayload);
+}
