@@ -32,38 +32,28 @@ async function handleQuestion(senderId, prompt, pageAccessToken) {
       }
     );
 
-    // Check for tool calls in the response
-    if (data.toolCalls && data.toolCalls.length > 0) {
-      for (const toolCall of data.toolCalls) {
-        if (toolCall.toolName === 'generateImage' && toolCall.result) {
-          const imageUrlMatch = toolCall.result.match(/(https?:\/\/[^\s)]+)/);
-          if (imageUrlMatch && imageUrlMatch[1]) {
-            await sendMessage(senderId, {
-              attachment: {
-                type: 'image',
-                payload: { url: imageUrlMatch[1] }
-              }
-            }, pageAccessToken);
-            return;
-          }
-        }
-        if (toolCall.toolName === 'browseWeb' && toolCall.result) {
-          const finalAnswer = data.choices?.[0]?.message?.content;
-          if (finalAnswer) {
-            await sendMessage(senderId, { text: finalAnswer }, pageAccessToken);
-            return;
-          }
-        }
-        if (toolCall.toolName === 'analyzeImage' && toolCall.result) {
-          // toolCall.result is the analysis text of the image
-          await sendMessage(senderId, { text: toolCall.result }, pageAccessToken);
-          return;
+    let content = data.choices?.[0]?.message?.content?.trim();
+
+    // If content is empty, try to use tool result
+    if (!content && Array.isArray(data.choices?.[0]?.message?.toolCalls)) {
+      const results = [];
+
+      for (const call of data.choices[0].message.toolCalls) {
+        if (call.toolName === 'generateImage' && call.result?.includes('http')) {
+          results.push(call.result);
+        } else if (call.toolName === 'browseWeb' && typeof call.result === 'object') {
+          const entries = call.result.organic || [];
+          const summary = entries.map(e => `• [${e.title}](${e.link})\n  ${e.snippet}`).join('\n\n');
+          results.push(`Here are the results I found:\n\n${summary}`);
+        } else if (call.toolName === 'analyzeImage' && typeof call.result === 'string') {
+          results.push(call.result);
         }
       }
+
+      content = results.join('\n\n').trim() || 'No reply.';
     }
 
-    // If no tool calls or unrecognized tool, send normal text response
-    const response = formatResponse(data.choices?.[0]?.message?.content || 'No reply.');
+    const response = formatResponse(content || 'No reply.');
     await sendMessage(senderId, { text: response }, pageAccessToken);
 
   } catch (err) {
@@ -72,5 +62,4 @@ async function handleQuestion(senderId, prompt, pageAccessToken) {
   }
 }
 
-const formatResponse = content =>
-  `💬 | 𝙲𝚑𝚒𝚙𝚙 𝙰𝚒\n・────────────・\n${content}\n・──── >ᴗ< ─────・`;
+const formatResponse = content => `💬 | 𝙲𝚑𝚒𝚙𝚙 𝙰𝚒\n・────────────・\n${content}\n・──── >ᴗ< ─────・`;
