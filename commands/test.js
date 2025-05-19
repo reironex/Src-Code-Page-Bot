@@ -99,15 +99,14 @@ module.exports = {
       const toolCalls = data.choices?.[0]?.message?.toolInvocations || [];  
   
       for (const toolCall of toolCalls) {  
-        if (toolCall.toolName === 'generateImage' && toolCall.state === 'result' && toolCall.result) {  
-          // Extract only the URL  
-          const urlMatch = toolCall.result.match(/https?:\/\/\S+/);  
-          const url = urlMatch ? urlMatch[0] : '';  
-          if (url) {  
-            await sendMessage(senderId, { text: url }, pageAccessToken);  
-            return;  
-          }  
-        }  
+        if (toolCall.toolName === 'generateImage' && toolCall.state === 'result' && toolCall.result) {
+  const urlMatch = toolCall.result.match(/https?:\/\/[^\s)]+/);
+  const url = urlMatch ? urlMatch[0] : '';
+  if (url) {
+    await sendMessage(senderId, { text: url }, pageAccessToken);
+    return;
+  }
+}
   
         if (toolCall.toolName === 'analyzeImage' && toolCall.state === 'result' && toolCall.result) {  
           await sendMessage(senderId, { text: toolCall.result }, pageAccessToken);  
