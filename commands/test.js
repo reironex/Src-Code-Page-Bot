@@ -11,7 +11,7 @@ return imageUrl;
 
 const conversationHistory = {};
 
-module.exports = { name: 'ai', description: 'Interact with Mocha AI using text queries and image analysis', usage: 'ask a question, or send a reply question to an image.', author: 'Coffee',
+module.exports = { name: 'test', description: 'Interact with Mocha AI using text queries and image analysis', usage: 'ask a question, or send a reply question to an image.', author: 'Coffee',
 
 async execute(senderId, args, pageAccessToken, event) { const prompt = args.join(' ').trim() || 'Hello'; const chatSessionId = "fc053908-a0f3-4a9c-ad4a-008105dcc360";
 
