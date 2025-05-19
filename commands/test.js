@@ -90,35 +90,43 @@ module.exports = {
 
       const toolInvocations = data.choices?.[0]?.message?.toolInvocations || [];
 
-      for (const tool of toolInvocations) {
-        if (tool.state !== 'result' || !tool.result) continue;
+for (const tool of toolInvocations) {
+  if (tool.state !== 'result' || !tool.result) continue;
 
-        if (tool.toolName === 'generateImage') {
-          const urlMatch = tool.result.match(/https?:\/\/\S+/);
-          const descriptionMatch = tool.result.match(/(?:Image|Generated Image):\s*(.+?)(?:https?:\/\/|$)/i);
-          const description = descriptionMatch ? descriptionMatch[1].trim() : 'Generated image';
-          const url = urlMatch ? urlMatch[0] : '';
-          const reply = `💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒 ・───────────・ Generated Image: ${description}\n\n${url} ・──── >ᴗ< ────・`;
-          await sendMessage(senderId, { text: reply }, pageAccessToken);
-          return;
-        }
+  if (tool.toolName === 'generateImage') {
+    const urlMatch = tool.result.match(/https?:\/\/\S+/);
+    const descriptionMatch = tool.result.match(/(?:Image|Generated Image):\s*(.+?)(?:https?:\/\/|$)/i);
+    const description = descriptionMatch ? descriptionMatch[1].trim() : 'Generated image';
+    const url = urlMatch ? urlMatch[0] : '';
+    const reply = `💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒 ・───────────・ Generated Image: ${description}\n\n${url} ・──── >ᴗ< ────・`;
+    for (const chunk of chunkMessage(reply)) {
+      await sendMessage(senderId, { text: chunk }, pageAccessToken);
+    }
+    return;
+  }
 
-        if (tool.toolName === 'analyzeImage') {
-          await sendMessage(senderId, { text: `Image analysis result: ${tool.result}` }, pageAccessToken);
-          return;
-        }
+  const header = `💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒\n・───────────・\n`;
+  const footer = `\n・──── >ᴗ< ────・`;
+  let fullText = "";
 
-        if (tool.toolName === 'browseWeb') {
-          const answerBox = tool.result.answerBox?.answer;
-          const organicSnippets = Array.isArray(tool.result.organic)
-            ? tool.result.organic.map(o => o.snippet).filter(Boolean).join('\n\n')
-            : '';
-          const answerText = answerBox || organicSnippets || '';
-          const reply = `💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒\n・───────────・\n${resultText}\n\nBrowse result:\n${answerText}\n・──── >ᴗ< ────・`;
-          await sendMessage(senderId, { text: reply }, pageAccessToken);
-          return;
-        }
-      }
+  if (tool.toolName === 'analyzeImage') {
+    fullText = `${header}Image analysis result:\n${tool.result}${footer}`;
+  } else if (tool.toolName === 'browseWeb') {
+    const answerBox = tool.result.answerBox?.answer;
+    const organicSnippets = Array.isArray(tool.result.organic)
+      ? tool.result.organic.map(o => o.snippet).filter(Boolean).join('\n\n')
+      : '';
+    const answerText = answerBox || organicSnippets || '';
+    fullText = `${header}${resultText}\n\nBrowse result:\n${answerText}${footer}`;
+  }
+
+  if (fullText) {
+    for (const chunk of chunkMessage(fullText)) {
+      await sendMessage(senderId, { text: chunk }, pageAccessToken);
+    }
+    return;
+  }
+}
 
       if (!resultText) throw new Error('Empty AI response');
 
