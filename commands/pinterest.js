@@ -13,7 +13,7 @@ module.exports = {
   name: 'pinterest',
   description: 'Search for Images in Pinterest.',
   usage: 'pinterest <search> [count]',
-  author: 'OpenAI + You',
+  author: 'Coffee',
 
   async execute(senderId, args, token) {
     const line = Buffer.from('aHR0cHM6Ly9vcmMtc2l4LnZlcmNlbC5hcHAvcGludGVyZXN0P3NlYXJjaD0=', 'base64').toString();
