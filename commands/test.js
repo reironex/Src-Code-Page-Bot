@@ -1,16 +1,13 @@
 const axios = require('axios');
 const { sendMessage } = require('../handles/sendMessage');
 
-function shuffleArray(array) {
-  for (let i = array.length - 1; i > 0; i--) {
+function mix(list) {
+  for (let i = list.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
+    [list[i], list[j]] = [list[j], list[i]];
   }
-  return array;
+  return list;
 }
-
-const base64Api = 'aHR0cHM6Ly9vcmMtc2l4LnZlcmNlbC5hcHAvcGludGVyZXN0P3NlYXJjaD0=';
-const apiBase = Buffer.from(base64Api, 'base64').toString('utf-8');
 
 module.exports = {
   name: 'pin',
@@ -18,31 +15,32 @@ module.exports = {
   usage: 'pinterest <search> [count]',
   author: 'OpenAI + You',
 
-  async execute(senderId, args, pageAccessToken) {
-    const input = args.join(' ');
-    const match = input.match(/^(.+?)[-\s]?(\d+)?$/i);
-    if (!match) {
-      return sendMessage(senderId, { text: 'Please provide a valid search term.' }, pageAccessToken);
+  async execute(senderId, args, token) {
+    const line = Buffer.from('aHR0cHM6Ly9vcmMtc2l4LnZlcmNlbC5hcHAvcGludGVyZXN0P3NlYXJjaD0=', 'base64').toString();
+
+    const q = args.join(' ');
+    const result = q.match(/^(.+?)[-\s]?(\d+)?$/i);
+    if (!result) {
+      return sendMessage(senderId, { text: 'Please provide a valid search term.' }, token);
     }
 
-    const searchQuery = match[1].trim();
-    let count = match[2] ? parseInt(match[2], 10) : 5;
+    const term = result[1].trim();
+    let count = result[2] ? parseInt(result[2], 10) : 5;
     count = Math.min(Math.max(count, 1), 20);
 
     try {
-      const res = await axios.get(apiBase + encodeURIComponent(searchQuery));
-      const images = Array.isArray(res.data?.data) ? [...new Set(res.data.data)] : [];
+      const pull = await axios.get(line + encodeURIComponent(term));
+      const basket = Array.isArray(pull.data?.data) ? [...new Set(pull.data.data)] : [];
 
-      if (!images.length) {
-        return sendMessage(senderId, { text: 'No results found.' }, pageAccessToken);
+      if (!basket.length) {
+        return sendMessage(senderId, { text: 'No results found.' }, token);
       }
 
-      const shuffledImages = shuffleArray(images);
-      for (const url of shuffledImages.slice(0, count)) {
-        await sendMessage(senderId, { attachment: { type: 'image', payload: { url } } }, pageAccessToken);
+      for (const item of mix(basket).slice(0, count)) {
+        await sendMessage(senderId, { attachment: { type: 'image', payload: { url: item } } }, token);
       }
-    } catch (error) {
-      sendMessage(senderId, { text: 'Error fetching Pinterest images.' }, pageAccessToken);
+    } catch {
+      sendMessage(senderId, { text: 'Error while retrieving images.' }, token);
     }
   }
 };
