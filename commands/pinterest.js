@@ -9,15 +9,17 @@ function shuffleArray(array) {
   return array;
 }
 
+const base64Api = 'aHR0cHM6Ly9vcmMtc2l4LnZlcmNlbC5hcHAvcGludGVyZXN0P3NlYXJjaD0=';
+const apiBase = Buffer.from(base64Api, 'base64').toString('utf-8');
+
 module.exports = {
   name: 'pinterest',
-  description: 'Get Pinterest images by keyword.',
+  description: 'Search and Fetch Images in Pinterest.',
   usage: 'pinterest <search> [count]',
   author: 'Coffee',
 
   async execute(senderId, args, pageAccessToken) {
     const input = args.join(' ');
-
     const match = input.match(/^(.+?)[-\s]?(\d+)?$/i);
     if (!match) {
       return sendMessage(senderId, { text: 'Please provide a valid search term.' }, pageAccessToken);
@@ -28,7 +30,7 @@ module.exports = {
     count = Math.min(Math.max(count, 1), 20);
 
     try {
-      const res = await axios.get(`https://orc-six.vercel.app/pinterest?search=${encodeURIComponent(searchQuery)}`);
+      const res = await axios.get(apiBase + encodeURIComponent(searchQuery));
       const images = Array.isArray(res.data?.data) ? [...new Set(res.data.data)] : [];
 
       if (!images.length) {
@@ -36,12 +38,10 @@ module.exports = {
       }
 
       const shuffledImages = shuffleArray(images);
-
       for (const url of shuffledImages.slice(0, count)) {
         await sendMessage(senderId, { attachment: { type: 'image', payload: { url } } }, pageAccessToken);
       }
     } catch (error) {
-      console.error('[Pinterest Error]', error.message);
       sendMessage(senderId, { text: 'Error fetching Pinterest images.' }, pageAccessToken);
     }
   }
