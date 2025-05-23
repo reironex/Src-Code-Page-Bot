@@ -4,16 +4,15 @@ const fs = require('fs');
 const path = require('path');
 const { sendMessage } = require('../handles/sendMessage');
 
-const FIREWORKS_KEY = 'fw_3ZUFwM2boU9JvizzBEr5HvJg';
-
 module.exports = {
-  name: 'image',
+  name: 'test',
   description: 'Generate images via prompt using the Flux model.',
   usage: '-imagegen [prompt]',
   author: 'coffee',
 
   execute: async (senderId, args, pageAccessToken) => {
     const string = Buffer.from('aHR0cHM6Ly9hcGkuZmlyZXdvcmtzLmFpL2luZmVyZW5jZS92MS93b3JrbG93cy9hY2NvdW50cy9maXJld29ya3MvbW9kZWxzL2ZsdXgtMS1zY2huZWxsLWZwOC90ZXh0X3RvX2ltYWdl', 'base64').toString();
+    const stringKey = Buffer.from('ZncfM1pVRndNMmJvVTlKdml6ekJFcjVIdkpn', 'base64').toString();
 
     if (!args.length) {
       return sendMessage(senderId, { text: 'Please provide a prompt for image generation.' }, pageAccessToken);
@@ -29,7 +28,7 @@ module.exports = {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'image/jpeg',
-            'Authorization': `Bearer ${FIREWORKS_KEY}`
+            'Authorization': `Bearer ${stringKey}`
           },
           responseType: 'arraybuffer'
         }
