@@ -1,32 +1,50 @@
 const axios = require('axios');
+const fs = require('fs');
+const { sendMessage } = require('../handles/sendMessage');
+
+const tokenPath = './token.txt';
+const pageAccessToken = fs.readFileSync(tokenPath, 'utf8').trim();
 
 module.exports = {
-  name: 'pinterest',
-  description: 'Fetch Pinterest images by keyword.',
-  usage: 'pinterest <search> [count]',
-  author: 'Coffee',
+name: 'pinterest',
+description: 'Search Pinterest for images.',
+usage: 'follow the format below.\npinterest cat -1',
+author: 'coffee',
 
-  async execute(ctx) {
-    const match = ctx.body.match(/pinterest\s+(.+?)(?:\s*-?\s*(\d+))?$/i);
-    if (!match) return ctx.reply('Please provide a valid search term.');
+async execute(senderId, args) {
+if (!args || !Array.isArray(args) || args.length === 0) {
+await sendMessage(senderId, { text: 'Please provide a search query.' }, pageAccessToken);
+return;
+}
 
-    const searchQuery = match[1].trim();
-    let count = match[2] ? parseInt(match[2], 10) : 5;
-    count = Math.max(1, Math.min(count, 20));
+const match = args.join(' ').match(/(.+)-(\d+)$/);    
+const searchQuery = match ? match[1].trim() : args.join(' ');    
+let imageCount = match ? parseInt(match[2], 10) : 5;    
 
-    try {
-      const res = await axios.get(`https://orc-six.vercel.app/pinterest?search=${encodeURIComponent(searchQuery)}`);
-      const data = res.data;
-      const images = Array.isArray(data?.data) ? [...new Set(data.data)] : [];
+imageCount = Math.max(1, Math.min(imageCount, 20));    
 
-      if (!images.length) return ctx.reply('No results found.');
+try {    
+  const { data } = await axios.get(`https://hiroshi-api.onrender.com/image/pinterest?search=${encodeURIComponent(searchQuery)}`);    
+  const selectedImages = data.data.slice(0, imageCount);    
 
-      for (const url of images.slice(0, count)) {
-        await ctx.sendImage(url);
-      }
-    } catch (err) {
-      console.error('[Pinterest Error]', err.message);
-      ctx.reply('Something went wrong while fetching Pinterest images.');
-    }
-  }
+  if (selectedImages.length === 0) {    
+    await sendMessage(senderId, { text: `No images found for "${searchQuery}".` }, pageAccessToken);    
+    return;    
+  }    
+
+  for (const url of selectedImages) {    
+    const attachment = {    
+      type: 'image',    
+      payload: { url }    
+    };    
+    await sendMessage(senderId, { attachment }, pageAccessToken);    
+  }    
+
+} catch (error) {    
+  console.error('Error:', error);    
+  await sendMessage(senderId, { text: 'Error: Could not fetch images.' }, pageAccessToken);    
+}
+
+}
 };
+
