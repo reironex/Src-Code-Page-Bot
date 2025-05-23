@@ -1,50 +1,40 @@
 const axios = require('axios');
-const fs = require('fs');
 const { sendMessage } = require('../handles/sendMessage');
 
-const tokenPath = './token.txt';
-const pageAccessToken = fs.readFileSync(tokenPath, 'utf8').trim();
-
 module.exports = {
-name: 'pinterest',
-description: 'Search Pinterest for images.',
-usage: 'follow the format below.\npinterest cat -1',
-author: 'coffee',
+  name: 'pinterest',
+  description: 'Get Pinterest images by keyword.',
+  usage: 'pinterest <search> [count]',
+  author: 'Coffee',
 
-async execute(senderId, args) {
-if (!args || !Array.isArray(args) || args.length === 0) {
-await sendMessage(senderId, { text: 'Please provide a search query.' }, pageAccessToken);
-return;
-}
+  async execute(senderId, args, pageAccessToken) {
+    const input = args.join(' ');
 
-const match = args.join(' ').match(/(.+)-(\d+)$/);    
-const searchQuery = match ? match[1].trim() : args.join(' ');    
-let imageCount = match ? parseInt(match[2], 10) : 5;    
+    // Extract search term and optional number (with or without dash/space)
+    const match = input.match(/^(.+?)[-\s]?(\d+)?$/i);
+    if (!match) {
+      return sendMessage(senderId, { text: 'Please provide a valid search term.' }, pageAccessToken);
+    }
 
-imageCount = Math.max(1, Math.min(imageCount, 20));    
+    const searchQuery = match[1].trim();
+    let count = match[2] ? parseInt(match[2], 10) : 5;
+    count = Math.min(Math.max(count, 1), 20); // limit between 1 and 20
 
-try {    
-  const { data } = await axios.get(`https://hiroshi-api.onrender.com/image/pinterest?search=${encodeURIComponent(searchQuery)}`);    
-  const selectedImages = data.data.slice(0, imageCount);    
+    try {
+      const res = await axios.get(`https://orc-six.vercel.app/pinterest?search=${encodeURIComponent(searchQuery)}`);
+      const images = Array.isArray(res.data?.data) ? [...new Set(res.data.data)] : [];
 
-  if (selectedImages.length === 0) {    
-    await sendMessage(senderId, { text: `No images found for "${searchQuery}".` }, pageAccessToken);    
-    return;    
-  }    
+      if (!images.length) {
+        return sendMessage(senderId, { text: 'No results found.' }, pageAccessToken);
+      }
 
-  for (const url of selectedImages) {    
-    const attachment = {    
-      type: 'image',    
-      payload: { url }    
-    };    
-    await sendMessage(senderId, { attachment }, pageAccessToken);    
-  }    
-
-} catch (error) {    
-  console.error('Error:', error);    
-  await sendMessage(senderId, { text: 'Error: Could not fetch images.' }, pageAccessToken);    
-}
-
-}
+      // Send images one by one
+      for (const url of images.slice(0, count)) {
+        await sendMessage(senderId, { attachment: { type: 'image', payload: { url } } }, pageAccessToken);
+      }
+    } catch (error) {
+      console.error('[Pinterest Error]', error.message);
+      sendMessage(senderId, { text: 'Error fetching Pinterest images.' }, pageAccessToken);
+    }
+  }
 };
-
