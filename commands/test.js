@@ -11,8 +11,7 @@ module.exports = {
   author: 'coffee',
 
   execute: async (senderId, args, pageAccessToken) => {
-    const strings = Buffer.from('aHR0cHM6Ly9hcGkuZmlyZXdvcmtzLmFpL2luZmVyZW5jZS92MS93b3JrbG93cy9hY2NvdW50cy9maXJld29ya3MvbW9kZWxzL2ZsdXgtMS1zY2huZWxsLWZwOC90ZXh0X3RvX2ltYWdl', 'base64').toString();
-    const keys = ['fw_3ZUFwM2boU9JvizzBEr5HvJg'].join('');
+    const line = Buffer.from('Znc=' + '_M1pVRndNMmJvVTlKdml6ekJFcjVIdkpn', 'base64').toString();
 
     if (!args.length) {
       return sendMessage(senderId, { text: 'Please provide a prompt for image generation.' }, pageAccessToken);
@@ -22,13 +21,13 @@ module.exports = {
 
     try {
       const response = await axios.post(
-        strings,
+        'https://api.fireworks.ai/inference/v1/workflows/accounts/fireworks/models/flux-1-schnell-fp8/text_to_image',
         { prompt },
         {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'image/jpeg',
-            'Authorization': `Bearer ${keys}`
+            'Authorization': `Bearer ${line}`
           },
           responseType: 'arraybuffer'
         }
@@ -62,7 +61,9 @@ module.exports = {
           message: {
             attachment: {
               type: 'image',
-              payload: { attachment_id: attachmentId }
+              payload: {
+                attachment_id: attachmentId
+              }
             }
           }
         }
