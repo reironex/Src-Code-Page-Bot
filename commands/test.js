@@ -48,7 +48,7 @@ module.exports = {
       form.append('filedata', fs.createReadStream(tmpFilePath));
 
       const uploadRes = await axios.post(
-        `https://graph.facebook.com/v17.0/me/message_attachments?access_token=${pageAccessToken}`,
+        `https://graph.facebook.com/v22.0/me/message_attachments?access_token=${pageAccessToken}`,
         form,
         { headers: form.getHeaders() }
       );
@@ -56,7 +56,7 @@ module.exports = {
       const attachmentId = uploadRes.data.attachment_id;
 
       await axios.post(
-        `https://graph.facebook.com/v17.0/me/messages?access_token=${pageAccessToken}`,
+        `https://graph.facebook.com/v22.0/me/messages?access_token=${pageAccessToken}`,
         {
           recipient: { id: senderId },
           message: {
