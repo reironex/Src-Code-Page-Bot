@@ -1,6 +1,14 @@
 const axios = require('axios');
 const { sendMessage } = require('../handles/sendMessage');
 
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
 module.exports = {
   name: 'pinterest',
   description: 'Get Pinterest images by keyword.',
@@ -10,7 +18,6 @@ module.exports = {
   async execute(senderId, args, pageAccessToken) {
     const input = args.join(' ');
 
-    // Extract search term and optional number (with or without dash/space)
     const match = input.match(/^(.+?)[-\s]?(\d+)?$/i);
     if (!match) {
       return sendMessage(senderId, { text: 'Please provide a valid search term.' }, pageAccessToken);
@@ -18,7 +25,7 @@ module.exports = {
 
     const searchQuery = match[1].trim();
     let count = match[2] ? parseInt(match[2], 10) : 5;
-    count = Math.min(Math.max(count, 1), 20); // limit between 1 and 20
+    count = Math.min(Math.max(count, 1), 20);
 
     try {
       const res = await axios.get(`https://orc-six.vercel.app/pinterest?search=${encodeURIComponent(searchQuery)}`);
@@ -28,8 +35,9 @@ module.exports = {
         return sendMessage(senderId, { text: 'No results found.' }, pageAccessToken);
       }
 
-      // Send images one by one
-      for (const url of images.slice(0, count)) {
+      const shuffledImages = shuffleArray(images);
+
+      for (const url of shuffledImages.slice(0, count)) {
         await sendMessage(senderId, { attachment: { type: 'image', payload: { url } } }, pageAccessToken);
       }
     } catch (error) {
