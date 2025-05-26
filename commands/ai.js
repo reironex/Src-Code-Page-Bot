@@ -30,24 +30,29 @@ module.exports = {
     const prompt = args.join(' ').trim() || 'Hello';
     const chatSessionId = "fc053908-a0f3-4a9c-ad4a-008105dcc360";
 
-    const headers = {
-      "Content-Type": "application/json",
-      "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Mobile Safari/537.36",
-      "Sec-CH-UA-Platform": "Android",
-      "Sec-CH-UA": '"Brave";v="136", "Chromium";v="136", "Not_A Brand";v="24"',
-      "Sec-CH-UA-Mobile": "?1",
-      "Accept": "*/*",
-      "Sec-GPC": "1",
-      "Accept-Language": "en-US,en;q=0.8",
-      "Origin": "https://app.chipp.ai",
-      "Sec-Fetch-Site": "same-origin",
-      "Sec-Fetch-Mode": "cors",
-      "Sec-Fetch-Dest": "empty",
-      "Referer": "https://app.chipp.ai/applications/35489/build?cacheBust=1737088263915",
-      "Accept-Encoding": "gzip, deflate, br, zstd",
-      "Cookie": "GAESA=CooBMDBjYTM2OTVkMjBiNTE5MWY3NzFkZTk2MTZjNzU3NjFkZDMxNTA2MDUwNGViMzA0MzUzNGIxZDM2MzIwMmZiNDEzZjA0MGEwNWNhYjhiYjMzMTRjMWRkZGE2ZTMxMGVjYWExNTdkNmNiMjFkNWViMzc2YWYxODg5ZjQ0YWIwZWRmMWIwZjNjNGE1EIbvm5THMg; __Host-next-auth.csrf-token=54510ff606af01782c0d6c08c39a96fb421ca5e0bfe58ae323702e5b2daab8b9%7C67f259a94de43fc5157335500f498153ad55759cd7e8350e1c36a98073db160a; __Secure-next-auth.callback-url=https%3A%2F%2Fapp.chipp.ai; ph_phc_58R4nRj6BbHvFBIwUiMlHyD8X7B5xrup5HMX1EDFsFw_posthog=%7B%22distinct_id%22%3A%22mjaymjas%40gmail.com%22%2C%22%24sesid%22%3A%5B1737088291942%2C%2201947286-f553-74f6-8a85-c5ed3e3815c8%22%2C1737088234835%5D%2C%22%24epp%22%3Atrue%7D; __Secure-next-auth.session-token=eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..dvZRGwF9T9nrJ8nX.Zezd6eR8u8MQhtSMghHVdbCHu3xFW4CXq3aHXLxw8QNC976iR3D797jF5u1Xm2RRv0TBy76El39mBltfXn2aa_7YShF-HztxeglSoBlxFBeI6OBCwDECWt_wMxqVaXeVnuWT60yVzH54cd3Xqq09kE3mTszWG9nGH5CXHYpghmUZtVfEhQKTgW139A86U42N2xR3VONMo_QO2kYpUZlCgKvubCsJv9KkATlz2tZwQeR1EHagYvlC8YQtI4zIUbaNcoDXxAmIpFR7J0GSQL3oi4akOk-pKhHFDa3KRLkw6e1WA7fvAgc7dXPaAbu7-ZfVVpcvP_uDi54UNCH-awQK4CVkR6Oqpx3nK-2kdd7DDxu3qRzmw0ItZCahU4Q.V4aAtYuxd2mCQZ_qLkKE2Q",
-      "Priority": "u=1, i",
-    };
+const headers = {
+  "Content-Type": "application/json",
+  "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Mobile Safari/537.36",
+  "Sec-CH-UA-Platform": "\"Android\"",
+  "Sec-CH-UA": "\"Chromium\";v=\"136\", \"Brave\";v=\"136\", \"Not.A/Brand\";v=\"99\"",
+  "Sec-CH-UA-Mobile": "?1",
+  "Accept": "*/*",
+  "Sec-GPC": "1",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Origin": "https://newapplication-70381.chipp.ai",
+  "Sec-Fetch-Site": "same-origin",
+  "Sec-Fetch-Mode": "cors",
+  "Sec-Fetch-Dest": "empty",
+  "Referer": "https://newapplication-70381.chipp.ai/w/chat/",
+  "Accept-Encoding": "gzip, deflate, br, zstd",
+  "Cookie": [
+    "__Host-next-auth.csrf-token=4723c7d0081a66dd0b572f5e85f5b40c2543881365782b6dcca3ef7eabdc33d6%7C06adf96c05173095abb983f9138b5e7ee281721e3935222c8b369c71c8e6536b",
+    "__Secure-next-auth.callback-url=https%3A%2F%2Fapp.chipp.ai",
+    "userId_70381=729a0bf6-bf9f-4ded-a861-9fbb75b839f5",
+    "correlationId=f8752bd2-a7b2-47ff-bd33-d30e5480eea8"
+  ].join("; "),
+  "Priority": "u=1, i"
+};
 
     try {
       if (!conversationHistory[senderId]) {
@@ -90,7 +95,7 @@ module.exports = {
         };
       }
 
-      const { data } = await axios.post("https://app.chipp.ai/api/chat", payload, { headers });
+const { data } = await axios.post("https://newapplication-70381.chipp.ai/api/chat", payload, { headers });
 
       // Gather the main text from the response chunks
       const responseTextChunks = data.match(/"result":"(.*?)"/g)?.map(chunk => chunk.slice(10, -1).replace(/\\n/g, '\n')) 
