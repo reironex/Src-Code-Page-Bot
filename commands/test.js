@@ -1,63 +1,41 @@
 const axios = require('axios');
+const { sendMessage } = require('../handles/sendMessage');
 
 module.exports = {
-    name: "tempmail",
-    description: "Temporary email generator and inbox viewer.",
-    usage: "tempmail gen | tempmail inbox [email]",
-    author: "ChatGPT",
-    async execute(message, args, client) {
-        const subCommand = args[0];
-
-        if (subCommand === 'gen') {
-            // Generate random inbox
-            const inbox = `user${Math.floor(Math.random() * 100000)}`;
-            const email = `${inbox}@maildrop.cc`;
-
-            await message.reply(`📧 Generated Temp Mail: **${email}**\nUse \`tempmail inbox ${email}\` to check messages.`);
-
-        } else if (subCommand === 'inbox') {
-            if (!args[1]) {
-                return await message.reply("❌ Please provide an email. Example: `tempmail inbox user12345@maildrop.cc`");
-            }
-
-            const email = args[1];
-            const inboxMatch = email.match(/^([^@]+)@maildrop\.cc$/);
-
-            if (!inboxMatch) {
-                return await message.reply("❌ Invalid email format. Must be like `something@maildrop.cc`.");
-            }
-
-            const inbox = inboxMatch[1];
-
-            try {
-                const inboxUrl = `https://maildrop.cc/api/inbox/${inbox}`;
-                const response = await axios.get(inboxUrl);
-                const messages = response.data.messages || [];
-
-                if (messages.length === 0) {
-                    return await message.reply(`📭 No messages in **${email}**.`);
-                }
-
-                // Show the latest message
-                const latest = messages[0];
-
-                let reply = `📬 Latest message for **${email}**\n`;
-                reply += `**Subject:** ${latest.subject}\n`;
-                reply += `**From:** ${latest.from}\n`;
-                reply += `**Time:** ${latest.time}\n`;
-                reply += `**Message ID:** ${latest.id}\n\n`;
-                reply += `To read full message: visit https://maildrop.cc/inbox/${inbox}`;
-
-                await message.reply(reply);
-
-            } catch (err) {
-                console.error(err);
-                await message.reply("❌ Failed to fetch inbox. Make sure the email is correct.");
-            }
-
-        } else {
-            // Unknown subcommand
-            await message.reply("❌ Invalid usage. Use:\n- `tempmail gen` to generate an email\n- `tempmail inbox [email]` to check inbox.");
-        }
+  name: "tempmail",
+  description: "Temporary email generator and inbox viewer.",
+  usage: "tempmail gen | tempmail inbox [email]",
+  author: "coffee",
+  async execute(message, args) {
+    const cmd = args[0];
+    if (cmd === 'gen') {
+      const inbox = `user${Math.floor(Math.random() * 100000)}`;
+      return sendMessage(message.chat, `📧 Generated Temp Mail: **${inbox}@maildrop.cc**\nUse \`tempmail inbox ${inbox}@maildrop.cc\` to check messages.`);
     }
+    
+    if (cmd === 'inbox') {
+      const email = args[1];
+      if (!email) return sendMessage(message.chat, "❌ Please provide an email. Usage: `tempmail inbox user123@maildrop.cc`");
+      const m = email.match(/^([^@]+)@maildrop\.cc$/);
+      if (!m) return sendMessage(message.chat, "❌ Invalid email format. Must be like `something@maildrop.cc`.");
+      
+      try {
+        const { data } = await axios.get(`https://maildrop.cc/api/inbox/${m[1]}`);
+        const msgs = data.messages || [];
+        if (!msgs.length) return sendMessage(message.chat, `📭 No messages in **${email}**.`);
+        const latest = msgs[0];
+        const reply = 
+          `📬 Latest message for **${email}**\n` +
+          `**Subject:** ${latest.subject}\n` +
+          `**From:** ${latest.from}\n` +
+          `**Time:** ${latest.time}\n` +
+          `**Message ID:** ${latest.id}`;
+        return sendMessage(message.chat, reply);
+      } catch {
+        return sendMessage(message.chat, "❌ Failed to fetch inbox. Make sure the email is correct.");
+      }
+    }
+    
+    return sendMessage(message.chat, "❌ Invalid usage. Use:\n- `tempmail gen`\n- `tempmail inbox [email]`");
+  }
 };
