@@ -5,11 +5,11 @@ const FormData = require('form-data');
 const { sendMessage } = require('../handles/sendMessage');
 
 const apiKeys = [
-  "h3GKJs26qdaD2ba2aKBYiuFt", 
-  "8GZdyztrAm7ygzde2EAcPNNg", 
-  "s1NPvP5zJpaL1msj7TCDhFmS", 
-  "fm7tXaPLSCyKApyBaCNPc99Z", 
-  "pEvqRAZLuBR1Wqqv66Rrqzwk", 
+  "h3GKJs26qdaD2ba2aKBYiuFt",
+  "8GZdyztrAm7ygzde2EAcPNNg",
+  "s1NPvP5zJpaL1msj7TCDhFmS",
+  "fm7tXaPLSCyKApyBaCNPc99Z",
+  "pEvqRAZLuBR1Wqqv66Rrqzwk",
   "84utdcBzF6Pbi8MVMZbdFSjW"
 ];
 
@@ -33,23 +33,24 @@ const getImageUrl = async (event, token) => {
 module.exports = {
   name: 'removebg',
   description: 'Remove image background using Remove.bg API.',
-  usage: '-removebg (reply to an image or use last image sent)',
+  usage: '-removebg (reply to an image or use last sent image)',
   author: 'coffee',
 
   execute: async (senderId, args, pageAccessToken, event, sendMessage, imageCache) => {
+    // First try reply_to mid (normal behavior)
     let imageUrl = await getImageUrl(event, pageAccessToken);
 
-    // If no reply or image found, check imageCache
-    if (!imageUrl) {
+    // If no reply image found, fallback to cached image
+    if (!imageUrl && imageCache) {
       const cachedImage = imageCache.get(senderId);
-      if (cachedImage && Date.now() - cachedImage.timestamp <= 5 * 60 * 1000) {
+      if (cachedImage && Date.now() - cachedImage.timestamp <= 5 * 60 * 1000) { // 5 min expiry
         imageUrl = cachedImage.url;
         console.log(`Using cached image for sender ${senderId}: ${imageUrl}`);
       }
     }
 
     if (!imageUrl) {
-      return sendMessage(senderId, { text: '❎ | Please reply to an image or send an image first.' }, pageAccessToken);
+      return sendMessage(senderId, { text: '❎ | Please reply to an image or send one first, then run this command.' }, pageAccessToken);
     }
 
     const tmpInput = path.join(__dirname, `tmp_input_${Date.now()}.jpg`);
