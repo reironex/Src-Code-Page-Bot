@@ -33,13 +33,23 @@ const getImageUrl = async (event, token) => {
 module.exports = {
   name: 'removebg',
   description: 'Remove image background using Remove.bg API.',
-  usage: '-removebg (reply to an image)',
+  usage: '-removebg (reply to an image or use last image sent)',
   author: 'coffee',
 
-  execute: async (senderId, args, pageAccessToken, event) => {
-    const imageUrl = await getImageUrl(event, pageAccessToken);
+  execute: async (senderId, args, pageAccessToken, event, sendMessage, imageCache) => {
+    let imageUrl = await getImageUrl(event, pageAccessToken);
+
+    // If no reply or image found, check imageCache
     if (!imageUrl) {
-      return sendMessage(senderId, { text: '❎ | Please reply to an image or send one with this command.' }, pageAccessToken);
+      const cachedImage = imageCache.get(senderId);
+      if (cachedImage && Date.now() - cachedImage.timestamp <= 5 * 60 * 1000) {
+        imageUrl = cachedImage.url;
+        console.log(`Using cached image for sender ${senderId}: ${imageUrl}`);
+      }
+    }
+
+    if (!imageUrl) {
+      return sendMessage(senderId, { text: '❎ | Please reply to an image or send an image first.' }, pageAccessToken);
     }
 
     const tmpInput = path.join(__dirname, `tmp_input_${Date.now()}.jpg`);
