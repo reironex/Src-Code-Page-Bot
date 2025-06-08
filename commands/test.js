@@ -2,12 +2,11 @@ const { sendMessage } = require('../handles/sendMessage');
 
 module.exports = {
   name: 'test',
-  description: 'A placeholder command for testing.',
-  usage: 'test',
-  author: 'You',
+  description: 'Send your senderId',
+  usage: '-myid',
+  author: 'coffee',
 
   async execute(senderId, args, pageAccessToken) {
-    // This command intentionally does nothing.
-    await sendMessage(senderId, { text: 'Test command executed (does nothing).' }, pageAccessToken);
+    await sendMessage(senderId, { text: `Your sender ID is: ${senderId}` }, pageAccessToken);
   }
 };
