@@ -4,8 +4,8 @@ const { sendMessage } = require('./sendMessage');
 
 const commands = new Map();
 const prefix = '-';
+const imageCache = new Map();
 
-// Load command modules
 fs.readdirSync(path.join(__dirname, '../commands'))
   .filter(file => file.endsWith('.js'))
   .forEach(file => {
@@ -18,6 +18,18 @@ async function handleMessage(event, pageAccessToken) {
   if (!senderId) return console.error('Invalid event object');
 
   const messageText = event?.message?.text?.trim();
+  const attachments = event?.message?.attachments || [];
+
+  for (const attachment of attachments) {
+    if (attachment.type === 'image' && attachment.payload?.url) {
+      console.log(`Caching image for sender ${senderId}: ${attachment.payload.url}`);
+      imageCache.set(senderId, {
+        url: attachment.payload.url,
+        timestamp: Date.now()
+      });
+    }
+  }
+
   if (!messageText) return console.log('Received event without message text');
 
   const [commandName, ...args] = messageText.startsWith(prefix)
@@ -30,9 +42,23 @@ async function handleMessage(event, pageAccessToken) {
     console.log(`Received command: ${normalizedCommand}, args: ${args.join(' ')}`);
 
     if (commands.has(normalizedCommand)) {
-      await commands.get(normalizedCommand).execute(senderId, args, pageAccessToken, event, sendMessage);
+      await commands.get(normalizedCommand).execute(
+        senderId,
+        args,
+        pageAccessToken,
+        event,
+        sendMessage,
+        imageCache
+      );
     } else if (commands.has('ai')) {
-      await commands.get('ai').execute(senderId, [messageText], pageAccessToken, event, sendMessage);
+      await commands.get('ai').execute(
+        senderId,
+        [messageText],
+        pageAccessToken,
+        event,
+        sendMessage,
+        imageCache
+      );
     } else {
       await sendMessage(senderId, { text: 'Unknown command and AI fallback is unavailable.' }, pageAccessToken);
     }
