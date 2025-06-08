@@ -1,8 +1,8 @@
-const TempMail = require('tempmail.lol');
+const TempMail = require('tempmail.lol').default;
 const { sendMessage } = require('../handles/sendMessage');
 
 const tempmail = new TempMail();
-const sessions = new Map(); // senderId -> { email, token }
+const sessions = new Map(); // email (lowercased) -> { token }
 
 module.exports = {
   name: 'tempmail',
