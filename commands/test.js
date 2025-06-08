@@ -1,97 +1,73 @@
 const fetch = require('node-fetch');
-const cheerio = require('cheerio');
 const { sendMessage } = require('../handles/sendMessage');
+
+const BASE_URL = 'https://www.1secmail.cc/api/v1/';
 
 module.exports = {
   name: 'tempmail',
-  description: 'Generate temporary email and check inbox (100% cheerio)',
-  usage: '-tempmail gen OR -tempmail inbox <inboxName> OR -tempmail read <inboxName> <msgIndex>',
+  description: 'Generate temporary email and check inbox (1secmail.cc public API)',
+  usage: '-tempmail gen OR -tempmail inbox <email> OR -tempmail read <email> <msgId>',
   author: 'coffee',
 
   async execute(senderId, args, pageAccessToken) {
-    const [cmd, inboxName, msgIndex] = args;
-    const usageMsg = { text: 'Usage: -tempmail gen OR -tempmail inbox <inboxName> OR -tempmail read <inboxName> <msgIndex>' };
+    const [cmd, email, msgId] = args;
+    const usageMsg = { text: 'Usage: -tempmail gen OR -tempmail inbox <email> OR -tempmail read <email> <msgId>' };
 
     if (cmd === 'gen') {
-      const name = Math.random().toString(36).substring(2, 10);
-      const address = `${name}@maildrop.cc`;
+      try {
+        const resp = await fetch(`${BASE_URL}?action=genRandomMailbox&count=1`);
+        const emails = await resp.json();
+        const address = emails[0];
 
-      return sendMessage(senderId, {
-        text: `📧 | Temporary Email: ${address}\nInbox link: https://maildrop.cc/inbox/${name}\nUse "-tempmail inbox ${name}" to check.`
-      }, pageAccessToken);
+        return sendMessage(senderId, {
+          text: `📧 | Temporary Email: ${address}\nUse "-tempmail inbox ${address}" to check inbox.`
+        }, pageAccessToken);
+      } catch (err) {
+        console.error(err);
+        return sendMessage(senderId, { text: '❌ Error: Could not generate email.' }, pageAccessToken);
+      }
     }
 
-    if (cmd === 'inbox' && inboxName) {
+    if (cmd === 'inbox' && email) {
       try {
-        const inboxUrl = `https://maildrop.cc/inbox/${inboxName}`;
-        const resp = await fetch(inboxUrl);
-        const html = await resp.text();
-        const $ = cheerio.load(html);
+        const [login, domain] = email.split('@');
+        if (!login || !domain) {
+          return sendMessage(senderId, { text: '❌ Invalid email format.' }, pageAccessToken);
+        }
 
-        const messages = [];
-        $('table.table tbody tr').each((_, el) => {
-          const subject = $(el).find('td:nth-child(2)').text().trim();
-          const from = $(el).find('td:nth-child(3)').text().trim();
-          const link = $(el).find('td:nth-child(2) a').attr('href');
-          if (link) {
-            messages.push({ subject, from, link: `https://maildrop.cc${link}` });
-          }
-        });
+        const resp = await fetch(`${BASE_URL}?action=getMessages&login=${login}&domain=${domain}`);
+        const messages = await resp.json();
 
         if (!messages.length) {
-          return sendMessage(senderId, { text: '📭 | Inbox is empty or does not exist.' }, pageAccessToken);
+          return sendMessage(senderId, { text: '📭 | Inbox is empty.' }, pageAccessToken);
         }
 
         let out = '📬 | Latest messages:\n';
-        messages.slice(0, 5).forEach((msg, i) => {
-          out += `\n${i + 1}. ${msg.subject} — from ${msg.from}`;
-        });
+        for (const msg of messages.slice(0, 5)) {
+          out += `\nID: ${msg.id}\nFrom: ${msg.from}\nSubject: ${msg.subject}\nDate: ${msg.date}\n`;
+        }
 
         await sendMessage(senderId, { text: out }, pageAccessToken);
-
       } catch (err) {
         console.error(err);
         return sendMessage(senderId, { text: '❌ Error: Could not fetch inbox.' }, pageAccessToken);
       }
     }
 
-    if (cmd === 'read' && inboxName && msgIndex) {
+    if (cmd === 'read' && email && msgId) {
       try {
-        const inboxUrl = `https://maildrop.cc/inbox/${inboxName}`;
-        const resp = await fetch(inboxUrl);
-        const html = await resp.text();
-        const $ = cheerio.load(html);
-
-        const messages = [];
-        $('table.table tbody tr').each((_, el) => {
-          const subject = $(el).find('td:nth-child(2)').text().trim();
-          const from = $(el).find('td:nth-child(3)').text().trim();
-          const link = $(el).find('td:nth-child(2) a').attr('href');
-          if (link) {
-            messages.push({ subject, from, link: `https://maildrop.cc${link}` });
-          }
-        });
-
-        const index = parseInt(msgIndex, 10) - 1;
-        if (isNaN(index) || index < 0 || index >= messages.length) {
-          return sendMessage(senderId, { text: '❌ Invalid message index.' }, pageAccessToken);
+        const [login, domain] = email.split('@');
+        if (!login || !domain) {
+          return sendMessage(senderId, { text: '❌ Invalid email format.' }, pageAccessToken);
         }
 
-        const selected = messages[index];
+        const msgResp = await fetch(`${BASE_URL}?action=readMessage&login=${login}&domain=${domain}&id=${msgId}`);
+        const msgData = await msgResp.json();
 
-        await sendMessage(senderId, {
-          text: `📬 Reading message #${msgIndex}\nFrom: ${selected.from}\nSubject: ${selected.subject}`
-        }, pageAccessToken);
-
-        const msgResp = await fetch(selected.link);
-        const msgHtml = await msgResp.text();
-        const $$ = cheerio.load(msgHtml);
-        const content = $$('#email_body').text().trim() || 'No content.';
-
+        const content = msgData.textBody || msgData.htmlBody || 'No content.';
         for (let i = 0; i < content.length; i += 1900) {
           await sendMessage(senderId, { text: content.slice(i, i + 1900) }, pageAccessToken);
         }
-
       } catch (err) {
         console.error(err);
         return sendMessage(senderId, { text: '❌ Error: Could not read message.' }, pageAccessToken);
