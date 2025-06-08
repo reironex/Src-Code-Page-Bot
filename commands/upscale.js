@@ -23,13 +23,24 @@ const getImageUrl = async (event, token) => {
 module.exports = {
   name: 'upscale',
   description: 'Enhance low-quality images using Pixelcut upscaler.',
-  usage: '-upscale (reply to a photo)',
+  usage: '-upscale (reply to an image or use last sent image)',
   author: 'coffee',
 
-  async execute(senderId, args, pageAccessToken, event) {
-    const imageUrl = await getImageUrl(event, pageAccessToken);
+  async execute(senderId, args, pageAccessToken, event, sendMessage, imageCache) {
+    // First try reply_to mid (normal behavior)
+    let imageUrl = await getImageUrl(event, pageAccessToken);
+
+    // If no reply image found, fallback to cached image
+    if (!imageUrl && imageCache) {
+      const cachedImage = imageCache.get(senderId);
+      if (cachedImage && Date.now() - cachedImage.timestamp <= 5 * 60 * 1000) { // 5 min expiry
+        imageUrl = cachedImage.url;
+        console.log(`Using cached image for sender ${senderId}: ${imageUrl}`);
+      }
+    }
+
     if (!imageUrl) {
-      return sendMessage(senderId, { text: '❎ | Please reply to an image to enhance it.' }, pageAccessToken);
+      return sendMessage(senderId, { text: '❎ | Please reply to an image or send one first, then run this command.' }, pageAccessToken);
     }
 
     const tmpInput = path.join(__dirname, `tmp_upscale_${Date.now()}.jpg`);
@@ -101,7 +112,7 @@ module.exports = {
 
       fs.unlinkSync(tmpOutput);
     } catch (err) {
-      console.error('Remini Error:', err.response?.data || err.message || err);
+      console.error('Upscale Error:', err.response?.data || err.message || err);
       sendMessage(senderId, { text: '❎ | Failed to upscale the image.' }, pageAccessToken);
     } finally {
       if (fs.existsSync(tmpInput)) fs.unlinkSync(tmpInput);
