@@ -3,7 +3,7 @@ const { sendMessage } = require('../handles/sendMessage');
 
 module.exports = {
   name: 'tempmail',
-  description: 'Generate temporary email and check inbox (tempmail.plus API)',
+  description: 'Generate temporary email and check inbox (tempr.email API)',
   usage: '-tempmail gen OR -tempmail inbox <email>',
   author: 'coffee',
 
@@ -13,9 +13,9 @@ module.exports = {
 
     if (cmd === 'gen') {
       try {
-        const resp = await fetch('https://api.tempmail.plus/domains');
+        const resp = await fetch('https://tempr.email/api/v2/domains');
         const data = await resp.json();
-        const domains = data?.domains;
+        const domains = data?.domains?.map(d => d.domain);
 
         if (!domains?.length) return sendMessage(senderId, { text: '❌ Error: Could not fetch domain list.' }, pageAccessToken);
 
@@ -35,10 +35,11 @@ module.exports = {
     if (cmd === 'inbox' && emailArg) {
       try {
         const emailEncoded = encodeURIComponent(emailArg);
-        const inboxResp = await fetch(`https://api.tempmail.plus/api/v1/mailbox/${emailEncoded}?limit=10`);
+        const inboxResp = await fetch(`https://tempr.email/api/v2/mailbox?email=${emailEncoded}`);
         const inboxData = await inboxResp.json();
 
-        const messages = inboxData?.mail_list;
+        const messages = inboxData?.message;
+
         if (!messages?.length)
           return sendMessage(senderId, { text: '📭 | Inbox is empty or doesn’t exist.' }, pageAccessToken);
 
@@ -47,7 +48,7 @@ module.exports = {
           text: `📬 From: ${latest.from}\nDate: ${latest.date}\nSubject: ${latest.subject}\nMessage ID: ${latest.id}`
         }, pageAccessToken);
 
-        const msgResp = await fetch(`https://api.tempmail.plus/api/v1/message/${latest.id}`);
+        const msgResp = await fetch(`https://tempr.email/api/v2/message/${latest.id}`);
         const msgData = await msgResp.json();
 
         const content = msgData?.text || msgData?.html || 'No content.';
