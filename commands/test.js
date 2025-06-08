@@ -3,6 +3,10 @@ const { sendMessage } = require('../handles/sendMessage');
 
 const BASE_URL = 'https://tempr.email/api/v1';
 
+const HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+};
+
 module.exports = {
   name: 'tempmail',
   description: 'Generate temporary email and check inbox (tempr.email public API)',
@@ -15,8 +19,12 @@ module.exports = {
 
     if (cmd === 'gen') {
       try {
-        const resp = await fetch(`${BASE_URL}/mailbox`);
+        const resp = await fetch(`${BASE_URL}/mailbox`, { headers: HEADERS });
         const data = await resp.json();
+
+        if (!data?.mailbox?.email || !data?.mailbox?.id) {
+          throw new Error('Invalid API response');
+        }
 
         const mailboxId = data.mailbox.id;
         const address = data.mailbox.email;
@@ -33,7 +41,7 @@ module.exports = {
     if (cmd === 'inbox' && param1) {
       const mailboxId = param1;
       try {
-        const resp = await fetch(`${BASE_URL}/mailbox/${mailboxId}/messages`);
+        const resp = await fetch(`${BASE_URL}/mailbox/${mailboxId}/messages`, { headers: HEADERS });
         const data = await resp.json();
 
         const messages = data?.messages || [];
@@ -57,7 +65,7 @@ module.exports = {
     if (cmd === 'read' && param1) {
       const messageId = param1;
       try {
-        const resp = await fetch(`${BASE_URL}/message/${messageId}`);
+        const resp = await fetch(`${BASE_URL}/message/${messageId}`, { headers: HEADERS });
         const msgData = await resp.json();
 
         const content = msgData?.text || msgData?.html || 'No content.';
