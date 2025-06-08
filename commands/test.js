@@ -1,59 +1,62 @@
 const fetch = require('node-fetch');
+const cheerio = require('cheerio');
 const { sendMessage } = require('../handles/sendMessage');
 
 module.exports = {
   name: 'tempmail',
-  description: 'Generate temporary email and check inbox (tempr.email API)',
-  usage: '-tempmail gen OR -tempmail inbox <email>',
+  description: 'Generate temporary email and check inbox (maildrop.cc with Cheerio)',
+  usage: '-tempmail gen OR -tempmail inbox <inboxName>',
   author: 'coffee',
 
   async execute(senderId, args, pageAccessToken) {
-    const [cmd, emailArg] = args;
-    const usageMsg = { text: 'Usage: -tempmail gen OR -tempmail inbox <email>' };
+    const [cmd, inboxName] = args;
+    const usageMsg = { text: 'Usage: -tempmail gen OR -tempmail inbox <inboxName>' };
 
     if (cmd === 'gen') {
-      try {
-        const resp = await fetch('https://tempr.email/api/v2/domains');
-        const data = await resp.json();
-        const domains = data?.domains?.map(d => d.domain);
+      const name = Math.random().toString(36).substring(2, 10);
+      const address = `${name}@maildrop.cc`;
 
-        if (!domains?.length) return sendMessage(senderId, { text: '❌ Error: Could not fetch domain list.' }, pageAccessToken);
-
-        const name = Math.random().toString(36).slice(2, 10);
-        const domain = domains[Math.floor(Math.random() * domains.length)];
-
-        return sendMessage(senderId, {
-          text: `📧 | Temporary Email: ${name}@${domain}\nUse "-tempmail inbox ${name}@${domain}" to check.`
-        }, pageAccessToken);
-
-      } catch (err) {
-        console.error(err);
-        return sendMessage(senderId, { text: '❌ Error: Could not generate email.' }, pageAccessToken);
-      }
+      return sendMessage(senderId, {
+        text: `📧 | Temporary Email: ${address}\nInbox link: https://maildrop.cc/inbox/${name}\nUse "-tempmail inbox ${name}" to check.`
+      }, pageAccessToken);
     }
 
-    if (cmd === 'inbox' && emailArg) {
+    if (cmd === 'inbox' && inboxName) {
       try {
-        const emailEncoded = encodeURIComponent(emailArg);
-        const inboxResp = await fetch(`https://tempr.email/api/v2/mailbox?email=${emailEncoded}`);
-        const inboxData = await inboxResp.json();
+        const inboxUrl = `https://maildrop.cc/inbox/${inboxName}`;
+        const resp = await fetch(inboxUrl);
+        const html = await resp.text();
+        const $ = cheerio.load(html);
 
-        const messages = inboxData?.message;
+        const messages = [];
+        $('table.table tbody tr').each((_, el) => {
+          const subject = $(el).find('td:nth-child(2)').text().trim();
+          const from = $(el).find('td:nth-child(3)').text().trim();
+          const link = $(el).find('td:nth-child(2) a').attr('href');
+          if (link) {
+            messages.push({ subject, from, link: `https://maildrop.cc${link}` });
+          }
+        });
 
-        if (!messages?.length)
-          return sendMessage(senderId, { text: '📭 | Inbox is empty or doesn’t exist.' }, pageAccessToken);
+        if (!messages.length) {
+          return sendMessage(senderId, { text: '📭 | Inbox is empty or does not exist.' }, pageAccessToken);
+        }
 
         const latest = messages[0];
         await sendMessage(senderId, {
-          text: `📬 From: ${latest.from}\nDate: ${latest.date}\nSubject: ${latest.subject}\nMessage ID: ${latest.id}`
+          text: `📬 From: ${latest.from}\nSubject: ${latest.subject}\nReading message...`
         }, pageAccessToken);
 
-        const msgResp = await fetch(`https://tempr.email/api/v2/message/${latest.id}`);
-        const msgData = await msgResp.json();
+        // Fetch full message
+        const msgResp = await fetch(latest.link);
+        const msgHtml = await msgResp.text();
+        const $$ = cheerio.load(msgHtml);
+        const content = $$('#email_body').text().trim() || 'No content.';
 
-        const content = msgData?.text || msgData?.html || 'No content.';
-        for (let i = 0; i < content.length; i += 1900)
+        // Split into chunks if needed
+        for (let i = 0; i < content.length; i += 1900) {
           await sendMessage(senderId, { text: content.slice(i, i + 1900) }, pageAccessToken);
+        }
 
       } catch (err) {
         console.error(err);
