@@ -1,47 +1,47 @@
-const axios = require('axios');
+const fetch = require('node-fetch');
 const { sendMessage } = require('../handles/sendMessage');
 
 module.exports = {
-  name: "tempmail",
-  description: "Temporary email generator and inbox viewer.",
-  usage: "tempmail gen | tempmail inbox [email]",
-  author: "coffee",
-  async execute(message, args) {
-    const cmd = args[0];
+  name: 'tempmail',
+  description: 'Generate temporary email and check inbox (no token)',
+  usage: '-tempmail gen OR -tempmail inbox <inboxName>',
+  author: 'coffee',
+
+  async execute(senderId, args, pageAccessToken) {
+    const [cmd, inboxName] = args;
+    const usageMsg = { text: 'Usage: -tempmail gen OR -tempmail inbox <inboxName>' };
 
     if (cmd === 'gen') {
-      const inbox = `user${Math.floor(Math.random() * 100000)}`;
-      return sendMessage(message.chat, `📧 Generated Temp Mail: **${inbox}@maildrop.cc**\nUse \`tempmail inbox ${inbox}@maildrop.cc\` to check messages.`);
+      const name = Math.random().toString(36).slice(2, 10);
+      return sendMessage(senderId, { text: `📧 | Temporary Email: ${name}@maildrop.cc\nUse "-tempmail inbox ${name}" to check.` }, pageAccessToken);
     }
 
-    if (cmd === 'inbox') {
-      const email = args[1];
-      if (!email) return sendMessage(message.chat, "❌ Please provide an email. Usage: `tempmail inbox user123@maildrop.cc`");
-
-      const m = email.match(/^([^@]+)@maildrop\.cc$/);
-      if (!m) return sendMessage(message.chat, "❌ Invalid email format. Must be like `something@maildrop.cc`.");
-
+    if (cmd === 'inbox' && inboxName) {
       try {
-        // API call to https://maildrop.cc/api/inbox/{inbox}
-        const { data } = await axios.get(`https://maildrop.cc/api/inbox/${m[1]}`);
-        const msgs = data.messages || [];
+        const resp = await fetch('https://api.maildrop.cc/graphql', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: `query($name:String!){inbox(name:$name){messages{id from subject date text}}}`,
+            variables: { name: inboxName }
+          })
+        });
+        const messages = (await resp.json())?.data?.inbox?.messages;
+        if (!messages?.length) return sendMessage(senderId, { text: '📭 | Inbox is empty or doesn’t exist.' }, pageAccessToken);
 
-        if (!msgs.length) return sendMessage(message.chat, `📭 No messages in **${email}**.`);
+        const { from, subject, date, text = '' } = messages[0];
+        await sendMessage(senderId, { text: `📬 From: ${from}\nDate: ${new Date(date).toLocaleString()}\nSubject: ${subject}` }, pageAccessToken);
 
-        const latest = msgs[0];
-        const reply =
-          `📬 Latest message for **${email}**\n` +
-          `**Subject:** ${latest.subject}\n` +
-          `**From:** ${latest.from}\n` +
-          `**Time:** ${latest.time}\n` +
-          `**Message ID:** ${latest.id}`;
+        for (let i = 0; i < text.length; i += 1900)
+          await sendMessage(senderId, { text: text.slice(i, i + 1900) }, pageAccessToken);
 
-        return sendMessage(message.chat, reply);
-      } catch {
-        return sendMessage(message.chat, "❌ Failed to fetch inbox. Make sure the email is correct.");
+        return;
+      } catch (err) {
+        console.error(err);
+        return sendMessage(senderId, { text: '❌ Error: Could not fetch inbox.' }, pageAccessToken);
       }
     }
 
-    return sendMessage(message.chat, "❌ Invalid usage. Use:\n- `tempmail gen`\n- `tempmail inbox [email]`");
-  }
+    return sendMessage(senderId, usageMsg, pageAccessToken);
+  },
 };
