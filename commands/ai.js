@@ -10,8 +10,7 @@ const getImageUrl = async (event, token) => {
       params: { access_token: token }
     });
 
-    const imageUrl = data?.data?.[0]?.image_data?.url || data?.data?.[0]?.file_url || null;
-    return imageUrl;
+    return data?.data?.[0]?.image_data?.url || data?.data?.[0]?.file_url || null;
   } catch (err) {
     console.error("Image URL fetch error:", err?.response?.data || err.message);
     return null;
@@ -19,8 +18,6 @@ const getImageUrl = async (event, token) => {
 };
 
 const conversationHistory = {};
-// Add this global imageCache to store last image per sender (could move outside if needed)
-const imageCache = new Map();
 
 module.exports = {
   name: 'ai',
@@ -28,7 +25,7 @@ module.exports = {
   usage: 'ask a question, or send a reply question to an image.',
   author: 'Coffee',
 
-  async execute(senderId, args, pageAccessToken, event, sendMessage) {
+  async execute(senderId, args, pageAccessToken, event, sendMessage, imageCache) {
     const prompt = args.join(' ').trim() || 'Hello';
     const chatSessionId = "fc053908-a0f3-4a9c-ad4a-008105dcc360";
 
@@ -71,19 +68,16 @@ module.exports = {
         return chunks;
       };
 
-      // Try reply-to image URL
+      // First try reply_to image
       let imageUrl = await getImageUrl(event, pageAccessToken);
 
-      // Fallback to cached image if no reply-to found
-      if (!imageUrl) {
-        const cached = imageCache.get(senderId);
-        if (cached && (Date.now() - cached.timestamp) <= 5 * 60 * 1000) { // 5 minutes expiry
-          imageUrl = cached.url;
+      // If none, fallback to cached image if available
+      if (!imageUrl && imageCache) {
+        const cachedImage = imageCache.get(senderId);
+        if (cachedImage && Date.now() - cachedImage.timestamp <= 5 * 60 * 1000) { // 5 min expiry
+          imageUrl = cachedImage.url;
           console.log(`Using cached image for sender ${senderId}: ${imageUrl}`);
         }
-      } else {
-        // If we found a new image URL from reply, update cache
-        imageCache.set(senderId, { url: imageUrl, timestamp: Date.now() });
       }
 
       let payload;
@@ -112,7 +106,6 @@ module.exports = {
 
       const { data } = await axios.post("https://newapplication-70381.chipp.ai/api/chat", payload, { headers });
 
-      // Extract main text from response
       const responseTextChunks = data.match(/"result":"(.*?)"/g)?.map(chunk => chunk.slice(10, -1).replace(/\\n/g, '\n'))
         || data.match(/0:"(.*?)"/g)?.map(chunk => chunk.slice(3, -1).replace(/\\n/g, '\n')) || [];
 
@@ -150,7 +143,9 @@ module.exports = {
         }
       }
 
-      if (!fullResponseText) throw new Error('Empty response from the AI.');
+      if (!fullResponseText) {
+        throw new Error('Empty response from the AI.');
+      }
 
       conversationHistory[senderId].push({ role: 'assistant', content: fullResponseText });
       const formattedResponse = `💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒\n・───────────・\n${fullResponseText}\n・──── >ᴗ< ────・`;
