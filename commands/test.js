@@ -1,83 +1,99 @@
 const fetch = require('node-fetch');
 const { sendMessage } = require('../handles/sendMessage');
 
-const BASE_URL = 'https://tempr.email/api/v1';
-
-const HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
-};
+const sessions = new Map(); // Map senderId => session info
 
 module.exports = {
   name: 'tempmail',
-  description: 'Generate temporary email and check inbox (tempr.email public API)',
-  usage: '-tempmail gen OR -tempmail inbox <mailboxId> OR -tempmail read <messageId>',
+  description: 'Temporary email with Guerrilla Mail API',
+  usage: '-tempmail gen OR -tempmail inbox OR -tempmail read <email_id>',
   author: 'coffee',
 
   async execute(senderId, args, pageAccessToken) {
-    const [cmd, param1] = args;
-    const usageMsg = { text: 'Usage: -tempmail gen OR -tempmail inbox <mailboxId> OR -tempmail read <messageId>' };
+    const [cmd, param] = args;
 
+    // Generate email address & init session
     if (cmd === 'gen') {
       try {
-        const resp = await fetch(`${BASE_URL}/mailbox`, { headers: HEADERS });
-        const data = await resp.json();
+        const res = await fetch('https://api.guerrillamail.com/ajax.php?f=get_email_address');
+        const data = await res.json();
 
-        if (!data?.mailbox?.email || !data?.mailbox?.id) {
-          throw new Error('Invalid API response');
+        if (!data.email_addr) {
+          throw new Error('Could not generate email');
         }
 
-        const mailboxId = data.mailbox.id;
-        const address = data.mailbox.email;
+        // Store session info per user
+        sessions.set(senderId, { sidToken: data.sid_token, email: data.email_addr });
 
         return sendMessage(senderId, {
-          text: `📧 | Temporary Email: ${address}\nMailbox ID: ${mailboxId}\n\nUse "-tempmail inbox ${mailboxId}" to check inbox.`
+          text: `📧 GuerrillaMail Address: ${data.email_addr}\nUse "-tempmail inbox" to check messages.`,
         }, pageAccessToken);
-      } catch (err) {
-        console.error(err);
-        return sendMessage(senderId, { text: '❌ Error: Could not generate email.' }, pageAccessToken);
+      } catch (e) {
+        console.error(e);
+        return sendMessage(senderId, { text: '❌ Error generating GuerrillaMail email.' }, pageAccessToken);
       }
     }
 
-    if (cmd === 'inbox' && param1) {
-      const mailboxId = param1;
+    // Check inbox messages for session
+    if (cmd === 'inbox') {
+      const session = sessions.get(senderId);
+      if (!session) {
+        return sendMessage(senderId, { text: '⚠️ No GuerrillaMail session found. Generate email first with "-tempmail gen".' }, pageAccessToken);
+      }
+
       try {
-        const resp = await fetch(`${BASE_URL}/mailbox/${mailboxId}/messages`, { headers: HEADERS });
-        const data = await resp.json();
+        const res = await fetch(`https://api.guerrillamail.com/ajax.php?f=get_email_list&offset=0&sid_token=${session.sidToken}`);
+        const data = await res.json();
 
-        const messages = data?.messages || [];
-
-        if (!messages.length) {
-          return sendMessage(senderId, { text: '📭 | Inbox is empty.' }, pageAccessToken);
+        if (!data.list || data.list.length === 0) {
+          return sendMessage(senderId, { text: '📭 Inbox is empty.' }, pageAccessToken);
         }
 
-        let out = '📬 | Latest messages:\n';
-        messages.forEach(msg => {
-          out += `\nID: ${msg.id}\nFrom: ${msg.from}\nSubject: ${msg.subject}\nDate: ${msg.createdAt}\n`;
+        let text = '📬 GuerrillaMail Inbox:\n';
+        data.list.forEach(msg => {
+          text += `\nID: ${msg.mail_id}\nFrom: ${msg.mail_from}\nSubject: ${msg.mail_subject}\nDate: ${msg.mail_date}\n`;
         });
 
-        await sendMessage(senderId, { text: out }, pageAccessToken);
-      } catch (err) {
-        console.error(err);
-        return sendMessage(senderId, { text: '❌ Error: Could not fetch inbox.' }, pageAccessToken);
+        return sendMessage(senderId, { text }, pageAccessToken);
+      } catch (e) {
+        console.error(e);
+        return sendMessage(senderId, { text: '❌ Error fetching GuerrillaMail inbox.' }, pageAccessToken);
       }
     }
 
-    if (cmd === 'read' && param1) {
-      const messageId = param1;
+    // Read specific email by ID
+    if (cmd === 'read' && param) {
+      const session = sessions.get(senderId);
+      if (!session) {
+        return sendMessage(senderId, { text: '⚠️ No GuerrillaMail session found. Generate email first with "-tempmail gen".' }, pageAccessToken);
+      }
+
       try {
-        const resp = await fetch(`${BASE_URL}/message/${messageId}`, { headers: HEADERS });
-        const msgData = await resp.json();
+        const res = await fetch(`https://api.guerrillamail.com/ajax.php?f=fetch_email&email_id=${param}&sid_token=${session.sidToken}`);
+        const data = await res.json();
 
-        const content = msgData?.text || msgData?.html || 'No content.';
-        for (let i = 0; i < content.length; i += 1900) {
-          await sendMessage(senderId, { text: content.slice(i, i + 1900) }, pageAccessToken);
+        if (!data.mail_body) {
+          return sendMessage(senderId, { text: '❌ Message not found or empty.' }, pageAccessToken);
         }
-      } catch (err) {
-        console.error(err);
-        return sendMessage(senderId, { text: '❌ Error: Could not read message.' }, pageAccessToken);
+
+        // Send subject + text body in chunks if needed
+        const subject = data.mail_subject || 'No subject';
+        const body = data.mail_body.replace(/<\/?[^>]+(>|$)/g, ""); // strip HTML tags
+
+        await sendMessage(senderId, { text: `📧 Subject: ${subject}` }, pageAccessToken);
+
+        for (let i = 0; i < body.length; i += 1900) {
+          await sendMessage(senderId, { text: body.substring(i, i + 1900) }, pageAccessToken);
+        }
+      } catch (e) {
+        console.error(e);
+        return sendMessage(senderId, { text: '❌ Error reading GuerrillaMail message.' }, pageAccessToken);
       }
     }
 
-    return sendMessage(senderId, usageMsg, pageAccessToken);
-  },
+    // Default usage message
+    return sendMessage(senderId, {
+      text: 'Usage:\n-tempmail gen\n-tempmail inbox\n-tempmail read <email_id>'
+    }, pageAccessToken);
+  }
 };
