@@ -1,6 +1,7 @@
-const tempmail = require('tempmail.lol').default();
+const { default: TempMail } = require('tempmail.lol');
 const { sendMessage } = require('../handles/sendMessage');
 
+const tempmail = new TempMail();
 const emailTokenCache = new Map();
 
 module.exports = {
