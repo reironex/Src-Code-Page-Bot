@@ -1,7 +1,6 @@
-const { default: TempMail } = require('tempmail.lol');
+const tempmail = require('tempmail.lol'); // Already an instance
 const { sendMessage } = require('../handles/sendMessage');
 
-const tempmail = new TempMail();
 const emailTokenCache = new Map();
 
 module.exports = {
