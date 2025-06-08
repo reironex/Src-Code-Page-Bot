@@ -3,18 +3,19 @@ const { sendMessage } = require('../handles/sendMessage');
 
 module.exports = {
   name: 'tempmail',
-  description: 'Generate temporary email and check inbox (1secmail API, flexible domain)',
-  usage: '-tempmail gen OR -tempmail inbox <login@domain>',
+  description: 'Generate temporary email and check inbox (tempmail.plus API)',
+  usage: '-tempmail gen OR -tempmail inbox <email>',
   author: 'coffee',
 
   async execute(senderId, args, pageAccessToken) {
     const [cmd, emailArg] = args;
-    const usageMsg = { text: 'Usage: -tempmail gen OR -tempmail inbox <login@domain>' };
+    const usageMsg = { text: 'Usage: -tempmail gen OR -tempmail inbox <email>' };
 
     if (cmd === 'gen') {
       try {
-        const resp = await fetch('https://www.1secmail.com/api/v1/?action=getDomainList');
-        const domains = await resp.json();
+        const resp = await fetch('https://api.tempmail.plus/domains');
+        const data = await resp.json();
+        const domains = data?.domains;
 
         if (!domains?.length) return sendMessage(senderId, { text: '❌ Error: Could not fetch domain list.' }, pageAccessToken);
 
@@ -32,15 +33,12 @@ module.exports = {
     }
 
     if (cmd === 'inbox' && emailArg) {
-      const match = emailArg.match(/^([^@]+)@(.+)$/);
-      if (!match) return sendMessage(senderId, usageMsg, pageAccessToken);
-
-      const [_, login, domain] = match;
-
       try {
-        const resp = await fetch(`https://www.1secmail.com/api/v1/?action=getMessages&login=${login}&domain=${domain}`);
-        const messages = await resp.json();
+        const emailEncoded = encodeURIComponent(emailArg);
+        const inboxResp = await fetch(`https://api.tempmail.plus/api/v1/mailbox/${emailEncoded}?limit=10`);
+        const inboxData = await inboxResp.json();
 
+        const messages = inboxData?.mail_list;
         if (!messages?.length)
           return sendMessage(senderId, { text: '📭 | Inbox is empty or doesn’t exist.' }, pageAccessToken);
 
@@ -49,11 +47,10 @@ module.exports = {
           text: `📬 From: ${latest.from}\nDate: ${latest.date}\nSubject: ${latest.subject}\nMessage ID: ${latest.id}`
         }, pageAccessToken);
 
-        // Optional: fetch message body
-        const msgResp = await fetch(`https://www.1secmail.com/api/v1/?action=readMessage&login=${login}&domain=${domain}&id=${latest.id}`);
+        const msgResp = await fetch(`https://api.tempmail.plus/api/v1/message/${latest.id}`);
         const msgData = await msgResp.json();
 
-        const content = msgData.textBody || msgData.htmlBody || 'No content.';
+        const content = msgData?.text || msgData?.html || 'No content.';
         for (let i = 0; i < content.length; i += 1900)
           await sendMessage(senderId, { text: content.slice(i, i + 1900) }, pageAccessToken);
 
