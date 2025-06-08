@@ -1,70 +1,81 @@
-const TempMail = require('tempmail.lol').default;
+const tempmail = require('tempmail.lol').default();
 const { sendMessage } = require('../handles/sendMessage');
 
-const tempmail = new TempMail();
-const sessions = new Map(); // email (lowercased) -> { token }
+const emailTokenCache = new Map();
 
 module.exports = {
   name: 'tempmail',
-  description: 'Generate temporary email and check inbox using TempMail.lol',
+  description: 'Generate temp email and check inbox (no API key needed)',
   usage: '-tempmail gen OR -tempmail inbox <email>',
   author: 'coffee',
 
   async execute(senderId, args, pageAccessToken) {
     const [cmd, emailArg] = args;
-    const usage = { text: 'Usage: -tempmail gen OR -tempmail inbox <email>' };
 
-    // Generate inbox
+    if (!cmd) {
+      return sendMessage(
+        senderId,
+        { text: 'Usage: -tempmail gen OR -tempmail inbox <email>' },
+        pageAccessToken
+      );
+    }
+
     if (cmd === 'gen') {
       try {
         const inbox = await tempmail.createInbox();
-        sessions.set(inbox.address.toLowerCase(), { token: inbox.token });
-
-        await sendMessage(senderId, {
-          text: `📧 Temporary Email: ${inbox.address}\nUse "-tempmail inbox ${inbox.address}" to check inbox.`
-        }, pageAccessToken);
+        emailTokenCache.set(inbox.address, inbox.token);
+        return sendMessage(
+          senderId,
+          {
+            text: `📧 Temporary Email: ${inbox.address}\nUse "-tempmail inbox ${inbox.address}" to check messages.`,
+          },
+          pageAccessToken
+        );
       } catch (e) {
         console.error(e);
-        await sendMessage(senderId, { text: '❌ Error: Could not generate email.' }, pageAccessToken);
+        return sendMessage(senderId, { text: '❌ Error: Could not generate email.' }, pageAccessToken);
       }
-      return;
     }
 
-    // Check inbox
-    if (cmd === 'inbox' && emailArg) {
-      const email = emailArg.toLowerCase();
-      const session = sessions.get(email);
+    if (cmd === 'inbox') {
+      if (!emailArg) {
+        return sendMessage(senderId, { text: 'Please provide the email to check.' }, pageAccessToken);
+      }
 
-      if (!session) {
-        await sendMessage(senderId, { text: '⚠️ No token found for this email. Please generate it first with "-tempmail gen".' }, pageAccessToken);
-        return;
+      const token = emailTokenCache.get(emailArg);
+      if (!token) {
+        return sendMessage(senderId, {
+          text: `❌ No token found for ${emailArg}. Please generate it first with "-tempmail gen".`,
+        }, pageAccessToken);
       }
 
       try {
-        const emails = await tempmail.checkInbox(session.token);
-
+        const emails = await tempmail.checkInbox(token);
         if (!emails || emails.length === 0) {
-          await sendMessage(senderId, { text: '📭 Inbox is empty.' }, pageAccessToken);
-          return;
+          return sendMessage(senderId, { text: '📭 Inbox is empty or expired.' }, pageAccessToken);
         }
 
         const latest = emails[0];
         await sendMessage(senderId, {
-          text: `📬 From: ${latest.from}\nSubject: ${latest.subject}\nDate: ${new Date(latest.date).toLocaleString()}`
+          text: `📬 From: ${latest.from}\nSubject: ${latest.subject}\nDate: ${new Date(latest.date).toLocaleString()}`,
         }, pageAccessToken);
 
-        const body = latest.body || '';
-        for (let i = 0; i < body.length; i += 1900) {
-          await sendMessage(senderId, { text: body.substring(i, i + 1900) }, pageAccessToken);
+        if (latest.body) {
+          // Split body in chunks of 1900 chars max
+          for (let i = 0; i < latest.body.length; i += 1900) {
+            await sendMessage(
+              senderId,
+              { text: latest.body.substring(i, i + 1900) },
+              pageAccessToken
+            );
+          }
         }
       } catch (e) {
         console.error(e);
-        await sendMessage(senderId, { text: '❌ Error: Could not fetch inbox.' }, pageAccessToken);
+        return sendMessage(senderId, { text: '❌ Error: Could not fetch inbox.' }, pageAccessToken);
       }
-      return;
+    } else {
+      return sendMessage(senderId, { text: 'Usage: -tempmail gen OR -tempmail inbox <email>' }, pageAccessToken);
     }
-
-    // Default usage message
-    await sendMessage(senderId, usage, pageAccessToken);
-  }
+  },
 };
