@@ -1,51 +1,55 @@
 const fetch = require('node-fetch');
+const cheerio = require('cheerio');
 const { sendMessage } = require('../handles/sendMessage');
-
-const BASE_URL = 'https://www.1secmail.cc/api/v1/';
 
 module.exports = {
   name: 'tempmail',
-  description: 'Generate temporary email and check inbox (1secmail.cc public API)',
-  usage: '-tempmail gen OR -tempmail inbox <email> OR -tempmail read <email> <msgId>',
+  description: 'Generate temporary email and check inbox (moakt.com scraper)',
+  usage: '-tempmail gen OR -tempmail inbox <username> OR -tempmail read <username> <msgId>',
   author: 'coffee',
 
   async execute(senderId, args, pageAccessToken) {
-    const [cmd, email, msgId] = args;
-    const usageMsg = { text: 'Usage: -tempmail gen OR -tempmail inbox <email> OR -tempmail read <email> <msgId>' };
+    const [cmd, param1, param2] = args;
+    const usageMsg = { text: 'Usage: -tempmail gen OR -tempmail inbox <username> OR -tempmail read <username> <msgId>' };
 
     if (cmd === 'gen') {
-      try {
-        const resp = await fetch(`${BASE_URL}?action=genRandomMailbox&count=1`);
-        const emails = await resp.json();
-        const address = emails[0];
+      const username = Math.random().toString(36).substring(2, 10);
+      const address = `${username}@moakt.cc`;
 
-        return sendMessage(senderId, {
-          text: `📧 | Temporary Email: ${address}\nUse "-tempmail inbox ${address}" to check inbox.`
-        }, pageAccessToken);
-      } catch (err) {
-        console.error(err);
-        return sendMessage(senderId, { text: '❌ Error: Could not generate email.' }, pageAccessToken);
-      }
+      return sendMessage(senderId, {
+        text: `📧 | Temporary Email: ${address}\nUse "-tempmail inbox ${username}" to check inbox.`
+      }, pageAccessToken);
     }
 
-    if (cmd === 'inbox' && email) {
+    if (cmd === 'inbox' && param1) {
+      const username = param1;
       try {
-        const [login, domain] = email.split('@');
-        if (!login || !domain) {
-          return sendMessage(senderId, { text: '❌ Invalid email format.' }, pageAccessToken);
-        }
+        const resp = await fetch(`https://www.moakt.com/en/inbox/${username}`);
+        const html = await resp.text();
+        const $ = cheerio.load(html);
 
-        const resp = await fetch(`${BASE_URL}?action=getMessages&login=${login}&domain=${domain}`);
-        const messages = await resp.json();
+        const messages = [];
+
+        $('table tbody tr').each((i, el) => {
+          const cols = $(el).find('td');
+          const msgId = $(cols[0]).find('a').attr('href')?.split('/').pop();
+          const from = $(cols[1]).text().trim();
+          const subject = $(cols[2]).text().trim();
+          const date = $(cols[3]).text().trim();
+
+          if (msgId) {
+            messages.push({ msgId, from, subject, date });
+          }
+        });
 
         if (!messages.length) {
           return sendMessage(senderId, { text: '📭 | Inbox is empty.' }, pageAccessToken);
         }
 
         let out = '📬 | Latest messages:\n';
-        for (const msg of messages.slice(0, 5)) {
-          out += `\nID: ${msg.id}\nFrom: ${msg.from}\nSubject: ${msg.subject}\nDate: ${msg.date}\n`;
-        }
+        messages.forEach(msg => {
+          out += `\nID: ${msg.msgId}\nFrom: ${msg.from}\nSubject: ${msg.subject}\nDate: ${msg.date}\n`;
+        });
 
         await sendMessage(senderId, { text: out }, pageAccessToken);
       } catch (err) {
@@ -54,17 +58,16 @@ module.exports = {
       }
     }
 
-    if (cmd === 'read' && email && msgId) {
+    if (cmd === 'read' && param1 && param2) {
+      const username = param1;
+      const msgId = param2;
       try {
-        const [login, domain] = email.split('@');
-        if (!login || !domain) {
-          return sendMessage(senderId, { text: '❌ Invalid email format.' }, pageAccessToken);
-        }
+        const resp = await fetch(`https://www.moakt.com/en/message/${username}/${msgId}`);
+        const html = await resp.text();
+        const $ = cheerio.load(html);
 
-        const msgResp = await fetch(`${BASE_URL}?action=readMessage&login=${login}&domain=${domain}&id=${msgId}`);
-        const msgData = await msgResp.json();
+        const content = $('#email_content').text().trim() || 'No content.';
 
-        const content = msgData.textBody || msgData.htmlBody || 'No content.';
         for (let i = 0; i < content.length; i += 1900) {
           await sendMessage(senderId, { text: content.slice(i, i + 1900) }, pageAccessToken);
         }
