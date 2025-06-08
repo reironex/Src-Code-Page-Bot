@@ -4,13 +4,13 @@ const { sendMessage } = require('../handles/sendMessage');
 
 module.exports = {
   name: 'tempmail',
-  description: 'Generate temporary email and check inbox (maildrop.cc with Cheerio)',
-  usage: '-tempmail gen OR -tempmail inbox <inboxName>',
+  description: 'Generate temporary email and check inbox (100% cheerio)',
+  usage: '-tempmail gen OR -tempmail inbox <inboxName> OR -tempmail read <inboxName> <msgIndex>',
   author: 'coffee',
 
   async execute(senderId, args, pageAccessToken) {
-    const [cmd, inboxName] = args;
-    const usageMsg = { text: 'Usage: -tempmail gen OR -tempmail inbox <inboxName>' };
+    const [cmd, inboxName, msgIndex] = args;
+    const usageMsg = { text: 'Usage: -tempmail gen OR -tempmail inbox <inboxName> OR -tempmail read <inboxName> <msgIndex>' };
 
     if (cmd === 'gen') {
       const name = Math.random().toString(36).substring(2, 10);
@@ -42,25 +42,59 @@ module.exports = {
           return sendMessage(senderId, { text: '📭 | Inbox is empty or does not exist.' }, pageAccessToken);
         }
 
-        const latest = messages[0];
+        let out = '📬 | Latest messages:\n';
+        messages.slice(0, 5).forEach((msg, i) => {
+          out += `\n${i + 1}. ${msg.subject} — from ${msg.from}`;
+        });
+
+        await sendMessage(senderId, { text: out }, pageAccessToken);
+
+      } catch (err) {
+        console.error(err);
+        return sendMessage(senderId, { text: '❌ Error: Could not fetch inbox.' }, pageAccessToken);
+      }
+    }
+
+    if (cmd === 'read' && inboxName && msgIndex) {
+      try {
+        const inboxUrl = `https://maildrop.cc/inbox/${inboxName}`;
+        const resp = await fetch(inboxUrl);
+        const html = await resp.text();
+        const $ = cheerio.load(html);
+
+        const messages = [];
+        $('table.table tbody tr').each((_, el) => {
+          const subject = $(el).find('td:nth-child(2)').text().trim();
+          const from = $(el).find('td:nth-child(3)').text().trim();
+          const link = $(el).find('td:nth-child(2) a').attr('href');
+          if (link) {
+            messages.push({ subject, from, link: `https://maildrop.cc${link}` });
+          }
+        });
+
+        const index = parseInt(msgIndex, 10) - 1;
+        if (isNaN(index) || index < 0 || index >= messages.length) {
+          return sendMessage(senderId, { text: '❌ Invalid message index.' }, pageAccessToken);
+        }
+
+        const selected = messages[index];
+
         await sendMessage(senderId, {
-          text: `📬 From: ${latest.from}\nSubject: ${latest.subject}\nReading message...`
+          text: `📬 Reading message #${msgIndex}\nFrom: ${selected.from}\nSubject: ${selected.subject}`
         }, pageAccessToken);
 
-        // Fetch full message
-        const msgResp = await fetch(latest.link);
+        const msgResp = await fetch(selected.link);
         const msgHtml = await msgResp.text();
         const $$ = cheerio.load(msgHtml);
         const content = $$('#email_body').text().trim() || 'No content.';
 
-        // Split into chunks if needed
         for (let i = 0; i < content.length; i += 1900) {
           await sendMessage(senderId, { text: content.slice(i, i + 1900) }, pageAccessToken);
         }
 
       } catch (err) {
         console.error(err);
-        return sendMessage(senderId, { text: '❌ Error: Could not fetch inbox.' }, pageAccessToken);
+        return sendMessage(senderId, { text: '❌ Error: Could not read message.' }, pageAccessToken);
       }
     }
 
