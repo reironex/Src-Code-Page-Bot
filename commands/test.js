@@ -1,81 +1,100 @@
-const tempmail = require('tempmail.lol'); // Already an instance
+const { TempMail } = require('tempmail.lol');
 const { sendMessage } = require('../handles/sendMessage');
 
-const emailTokenCache = new Map();
+// Simple in-memory cache: email => token
+const tokenCache = {};
 
 module.exports = {
   name: 'tempmail',
-  description: 'Generate temp email and check inbox (no API key needed)',
+  description: 'Generate temporary email and check inbox',
   usage: '-tempmail gen OR -tempmail inbox <email>',
   author: 'coffee',
 
   async execute(senderId, args, pageAccessToken) {
+    const tempmail = new TempMail(); // Create a TempMail instance
     const [cmd, emailArg] = args;
 
+    // Validate input arguments before proceeding
     if (!cmd) {
-      return sendMessage(
-        senderId,
-        { text: 'Usage: -tempmail gen OR -tempmail inbox <email>' },
-        pageAccessToken
-      );
+      return sendMessage(senderId, { text: 'Invalid usage. You need to provide a command like -tempmail gen or -tempmail inbox <email>' }, pageAccessToken);
     }
 
     if (cmd === 'gen') {
       try {
         const inbox = await tempmail.createInbox();
-        emailTokenCache.set(inbox.address, inbox.token);
+
+        // Cache the token with email as key
+        tokenCache[inbox.address] = inbox.token;
+
         return sendMessage(
           senderId,
           {
-            text: `📧 Temporary Email: ${inbox.address}\nUse "-tempmail inbox ${inbox.address}" to check messages.`,
+            text: `📧 | 𝐓𝐞𝐦𝐩𝐨𝐫𝐚𝐫𝐲 𝐄𝐦𝐚𝐢𝐥: ${inbox.address}\n\n🔎 To check the inbox later, use:\n-tempmail inbox ${inbox.address}`,
           },
           pageAccessToken
         );
-      } catch (e) {
-        console.error(e);
-        return sendMessage(senderId, { text: '❌ Error: Could not generate email.' }, pageAccessToken);
+      } catch (error) {
+        return sendMessage(senderId, { text: 'Error: Unable to generate temporary email.' }, pageAccessToken);
       }
     }
 
     if (cmd === 'inbox') {
       if (!emailArg) {
-        return sendMessage(senderId, { text: 'Please provide the email to check.' }, pageAccessToken);
+        return sendMessage(senderId, { text: '❗ Please provide an email. Example: -tempmail inbox your-temporary-email@domain.com' }, pageAccessToken);
       }
 
-      const token = emailTokenCache.get(emailArg);
-      if (!token) {
-        return sendMessage(senderId, {
-          text: `❌ No token found for ${emailArg}. Please generate it first with "-tempmail gen".`,
-        }, pageAccessToken);
+      const tokenToUse = tokenCache[emailArg];
+
+      if (!tokenToUse) {
+        return sendMessage(senderId, { text: `❗ No cached token found for email: ${emailArg}\nPlease use -tempmail gen first to generate it.` }, pageAccessToken);
       }
 
       try {
-        const emails = await tempmail.checkInbox(token);
+        const emails = await tempmail.checkInbox(tokenToUse);
+
         if (!emails || emails.length === 0) {
-          return sendMessage(senderId, { text: '📭 Inbox is empty or expired.' }, pageAccessToken);
+          return sendMessage(senderId, { text: '📭 | Inbox is empty or has expired.' }, pageAccessToken);
         }
 
-        const latest = emails[0];
-        await sendMessage(senderId, {
-          text: `📬 From: ${latest.from}\nSubject: ${latest.subject}\nDate: ${new Date(latest.date).toLocaleString()}`,
-        }, pageAccessToken);
+        const latestEmail = emails[0];
 
-        if (latest.body) {
-          // Split body in chunks of 1900 chars max
-          for (let i = 0; i < latest.body.length; i += 1900) {
-            await sendMessage(
-              senderId,
-              { text: latest.body.substring(i, i + 1900) },
-              pageAccessToken
-            );
-          }
+        // Send the metadata message (From, Date, Subject)
+        await sendMessage(
+          senderId,
+          {
+            text: `📬 | 𝐋𝐚𝐭𝐞𝐬𝐭 𝐄𝐦𝐚𝐢𝐥:\n𝐅𝐫𝐨𝐦: ${latestEmail.from}\n𝐃𝐚𝐭𝐞: ${new Date(latestEmail.date).toLocaleString()}\n𝐒𝐮𝐛𝐣𝐞𝐜𝐭: ${latestEmail.subject}`,
+          },
+          pageAccessToken
+        );
+
+        // Send the content in chunks
+        const content = latestEmail.body;
+        const chunkSize = 1900; // Maximum characters per message
+        const chunks = [];
+
+        // Split the content into chunks
+        for (let i = 0; i < content.length; i += chunkSize) {
+          chunks.push(content.slice(i, i + chunkSize));
         }
-      } catch (e) {
-        console.error(e);
-        return sendMessage(senderId, { text: '❌ Error: Could not fetch inbox.' }, pageAccessToken);
+
+        // Send the first chunk with the "Content:" label
+        await sendMessage(senderId, { text: `𝐂𝐨𝐧𝐭𝐞𝐧𝐭:\n${chunks[0]}` }, pageAccessToken);
+
+        // Send subsequent chunks without the "Content:" label
+        for (let i = 1; i < chunks.length; i++) {
+          await sendMessage(senderId, { text: `${chunks[i]}` }, pageAccessToken);
+        }
+
+      } catch (error) {
+        return sendMessage(senderId, { text: 'Error: Unable to fetch inbox or email content.' }, pageAccessToken);
       }
     } else {
-      return sendMessage(senderId, { text: 'Usage: -tempmail gen OR -tempmail inbox <email>' }, pageAccessToken);
+      // Only send the invalid usage message if no valid command is provided
+      return sendMessage(
+        senderId,
+        { text: 'Invalid usage. Use -tempmail gen or -tempmail inbox <email>' },
+        pageAccessToken
+      );
     }
   },
 };
