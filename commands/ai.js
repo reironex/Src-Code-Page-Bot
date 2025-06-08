@@ -19,6 +19,8 @@ const getImageUrl = async (event, token) => {
 };
 
 const conversationHistory = {};
+// Add this global imageCache to store last image per sender (could move outside if needed)
+const imageCache = new Map();
 
 module.exports = {
   name: 'ai',
@@ -26,33 +28,33 @@ module.exports = {
   usage: 'ask a question, or send a reply question to an image.',
   author: 'Coffee',
 
-  async execute(senderId, args, pageAccessToken, event) {
+  async execute(senderId, args, pageAccessToken, event, sendMessage) {
     const prompt = args.join(' ').trim() || 'Hello';
     const chatSessionId = "fc053908-a0f3-4a9c-ad4a-008105dcc360";
 
-const headers = {
-  "Content-Type": "application/json",
-  "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Mobile Safari/537.36",
-  "Sec-CH-UA-Platform": "\"Android\"",
-  "Sec-CH-UA": "\"Chromium\";v=\"136\", \"Brave\";v=\"136\", \"Not.A/Brand\";v=\"99\"",
-  "Sec-CH-UA-Mobile": "?1",
-  "Accept": "*/*",
-  "Sec-GPC": "1",
-  "Accept-Language": "en-US,en;q=0.9",
-  "Origin": "https://newapplication-70381.chipp.ai",
-  "Sec-Fetch-Site": "same-origin",
-  "Sec-Fetch-Mode": "cors",
-  "Sec-Fetch-Dest": "empty",
-  "Referer": "https://newapplication-70381.chipp.ai/w/chat/",
-  "Accept-Encoding": "gzip, deflate, br, zstd",
-  "Cookie": [
-    "__Host-next-auth.csrf-token=4723c7d0081a66dd0b572f5e85f5b40c2543881365782b6dcca3ef7eabdc33d6%7C06adf96c05173095abb983f9138b5e7ee281721e3935222c8b369c71c8e6536b",
-    "__Secure-next-auth.callback-url=https%3A%2F%2Fapp.chipp.ai",
-    "userId_70381=729a0bf6-bf9f-4ded-a861-9fbb75b839f5",
-    "correlationId=f8752bd2-a7b2-47ff-bd33-d30e5480eea8"
-  ].join("; "),
-  "Priority": "u=1, i"
-};
+    const headers = {
+      "Content-Type": "application/json",
+      "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Mobile Safari/537.36",
+      "Sec-CH-UA-Platform": "\"Android\"",
+      "Sec-CH-UA": "\"Chromium\";v=\"136\", \"Brave\";v=\"136\", \"Not.A/Brand\";v=\"99\"",
+      "Sec-CH-UA-Mobile": "?1",
+      "Accept": "*/*",
+      "Sec-GPC": "1",
+      "Accept-Language": "en-US,en;q=0.9",
+      "Origin": "https://newapplication-70381.chipp.ai",
+      "Sec-Fetch-Site": "same-origin",
+      "Sec-Fetch-Mode": "cors",
+      "Sec-Fetch-Dest": "empty",
+      "Referer": "https://newapplication-70381.chipp.ai/w/chat/",
+      "Accept-Encoding": "gzip, deflate, br, zstd",
+      "Cookie": [
+        "__Host-next-auth.csrf-token=4723c7d0081a66dd0b572f5e85f5b40c2543881365782b6dcca3ef7eabdc33d6%7C06adf96c05173095abb983f9138b5e7ee281721e3935222c8b369c71c8e6536b",
+        "__Secure-next-auth.callback-url=https%3A%2F%2Fapp.chipp.ai",
+        "userId_70381=729a0bf6-bf9f-4ded-a861-9fbb75b839f5",
+        "correlationId=f8752bd2-a7b2-47ff-bd33-d30e5480eea8"
+      ].join("; "),
+      "Priority": "u=1, i"
+    };
 
     try {
       if (!conversationHistory[senderId]) {
@@ -69,7 +71,20 @@ const headers = {
         return chunks;
       };
 
-      const imageUrl = await getImageUrl(event, pageAccessToken);
+      // Try reply-to image URL
+      let imageUrl = await getImageUrl(event, pageAccessToken);
+
+      // Fallback to cached image if no reply-to found
+      if (!imageUrl) {
+        const cached = imageCache.get(senderId);
+        if (cached && (Date.now() - cached.timestamp) <= 5 * 60 * 1000) { // 5 minutes expiry
+          imageUrl = cached.url;
+          console.log(`Using cached image for sender ${senderId}: ${imageUrl}`);
+        }
+      } else {
+        // If we found a new image URL from reply, update cache
+        imageCache.set(senderId, { url: imageUrl, timestamp: Date.now() });
+      }
 
       let payload;
 
@@ -95,25 +110,22 @@ const headers = {
         };
       }
 
-const { data } = await axios.post("https://newapplication-70381.chipp.ai/api/chat", payload, { headers });
+      const { data } = await axios.post("https://newapplication-70381.chipp.ai/api/chat", payload, { headers });
 
-      // Gather the main text from the response chunks
-      const responseTextChunks = data.match(/"result":"(.*?)"/g)?.map(chunk => chunk.slice(10, -1).replace(/\\n/g, '\n')) 
+      // Extract main text from response
+      const responseTextChunks = data.match(/"result":"(.*?)"/g)?.map(chunk => chunk.slice(10, -1).replace(/\\n/g, '\n'))
         || data.match(/0:"(.*?)"/g)?.map(chunk => chunk.slice(3, -1).replace(/\\n/g, '\n')) || [];
 
       const fullResponseText = responseTextChunks.join('');
       const toolCalls = data.choices?.[0]?.message?.toolInvocations || [];
 
-      // Process tool invocations
       for (const toolCall of toolCalls) {
         if (toolCall.toolName === 'generateImage' && toolCall.state === 'result' && toolCall.result) {
-          // Extract description and URL cleanly
           const descMatch = toolCall.result.match(/(?:Image|Generated Image):\s*(.+?)(?:https?:\/\/)/i);
           const description = descMatch ? descMatch[1].trim() : 'Generated image';
           const urlMatch = toolCall.result.match(/https?:\/\/\S+/);
           const url = urlMatch ? urlMatch[0] : '';
 
-          // Compose exactly as requested, no extra newlines
           const formattedImageReply = `💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒 ・───────────・ Generated Image: ${description}\n\n${url} ・──── >ᴗ< ────・`;
           await sendMessage(senderId, { text: formattedImageReply }, pageAccessToken);
           return;
@@ -125,7 +137,6 @@ const { data } = await axios.post("https://newapplication-70381.chipp.ai/api/cha
         }
 
         if (toolCall.toolName === 'browseWeb' && toolCall.state === 'result' && toolCall.result) {
-          // The browseWeb result can be structured, but here we just send the full text answer from the result
           let answerText = '';
           if (toolCall.result.answerBox && toolCall.result.answerBox.answer) {
             answerText = toolCall.result.answerBox.answer;
@@ -139,10 +150,7 @@ const { data } = await axios.post("https://newapplication-70381.chipp.ai/api/cha
         }
       }
 
-      // If no tools matched or no special handling, just send the full text
-      if (!fullResponseText) {
-        throw new Error('Empty response from the AI.');
-      }
+      if (!fullResponseText) throw new Error('Empty response from the AI.');
 
       conversationHistory[senderId].push({ role: 'assistant', content: fullResponseText });
       const formattedResponse = `💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒\n・───────────・\n${fullResponseText}\n・──── >ᴗ< ────・`;
