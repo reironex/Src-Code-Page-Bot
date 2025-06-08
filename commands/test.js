@@ -1,82 +1,63 @@
-const fetch = require('node-fetch');
-const { sendMessage } = require('../handles/sendMessage');
+const axios = require('axios');
 
 module.exports = {
-  name: 'test',
-  description: 'Generate temporary email and check inbox (no token)',
-  usage: '-tempmail gen OR -tempmail inbox <full email>',
-  author: 'coffee',
+    name: "tempmail",
+    description: "Temporary email generator and inbox viewer.",
+    usage: "tempmail gen | tempmail inbox [email]",
+    author: "ChatGPT",
+    async execute(message, args, client) {
+        const subCommand = args[0];
 
-  async execute(senderId, args, pageAccessToken) {
-    const [cmd, emailInput] = args;
+        if (subCommand === 'gen') {
+            // Generate random inbox
+            const inbox = `user${Math.floor(Math.random() * 100000)}`;
+            const email = `${inbox}@maildrop.cc`;
 
-    if (!cmd) {
-      return sendMessage(senderId, { text: 'Usage: -tempmail gen OR -tempmail inbox <full email>' }, pageAccessToken);
-    }
+            await message.reply(`📧 Generated Temp Mail: **${email}**\nUse \`tempmail inbox ${email}\` to check messages.`);
 
-    if (cmd === 'gen') {
-      // Generate a random inbox name
-      const name = Math.random().toString(36).substring(2, 10);
-      const address = `${name}@maildrop.cc`;
-      return sendMessage(senderId, { text: `📧 | Temporary Email: ${address}\nUse "-tempmail inbox ${address}" to check.` }, pageAccessToken);
-    }
+        } else if (subCommand === 'inbox') {
+            if (!args[1]) {
+                return await message.reply("❌ Please provide an email. Example: `tempmail inbox user12345@maildrop.cc`");
+            }
 
-    if (cmd === 'inbox' && emailInput) {
-      // Validate full email format
-      if (!emailInput.includes('@')) {
-        return sendMessage(senderId, { text: 'Error: Please provide a full email address (example@maildrop.cc)' }, pageAccessToken);
-      }
+            const email = args[1];
+            const inboxMatch = email.match(/^([^@]+)@maildrop\.cc$/);
 
-      // Extract inbox name from full email
-      const inboxName = emailInput.split('@')[0];
+            if (!inboxMatch) {
+                return await message.reply("❌ Invalid email format. Must be like `something@maildrop.cc`.");
+            }
 
-      try {
-        const resp = await fetch('https://api.maildrop.cc/graphql', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: `
-              query($name: String!) {
-                inbox(name: $name) {
-                  messages {
-                    id
-                    from
-                    subject
-                    date
-                    text
-                  }
+            const inbox = inboxMatch[1];
+
+            try {
+                const inboxUrl = `https://maildrop.cc/api/inbox/${inbox}`;
+                const response = await axios.get(inboxUrl);
+                const messages = response.data.messages || [];
+
+                if (messages.length === 0) {
+                    return await message.reply(`📭 No messages in **${email}**.`);
                 }
-              }`,
-            variables: { name: inboxName }
-          })
-        });
 
-        const { data } = await resp.json();
-        const messages = data?.inbox?.messages;
+                // Show the latest message
+                const latest = messages[0];
 
-        if (!messages || messages.length === 0) {
-          return sendMessage(senderId, { text: '📭 | Inbox is empty or doesn’t exist.' }, pageAccessToken);
+                let reply = `📬 Latest message for **${email}**\n`;
+                reply += `**Subject:** ${latest.subject}\n`;
+                reply += `**From:** ${latest.from}\n`;
+                reply += `**Time:** ${latest.time}\n`;
+                reply += `**Message ID:** ${latest.id}\n\n`;
+                reply += `To read full message: visit https://maildrop.cc/inbox/${inbox}`;
+
+                await message.reply(reply);
+
+            } catch (err) {
+                console.error(err);
+                await message.reply("❌ Failed to fetch inbox. Make sure the email is correct.");
+            }
+
+        } else {
+            // Unknown subcommand
+            await message.reply("❌ Invalid usage. Use:\n- `tempmail gen` to generate an email\n- `tempmail inbox [email]` to check inbox.");
         }
-
-        const latest = messages[0];
-        await sendMessage(senderId, {
-          text: `📬 From: ${latest.from}\nDate: ${new Date(latest.date).toLocaleString()}\nSubject: ${latest.subject}`
-        }, pageAccessToken);
-
-        const content = latest.text || '';
-        for (let chunkStart = 0; chunkStart < content.length; chunkStart += 1900) {
-          await sendMessage(
-            senderId,
-            { text: content.substr(chunkStart, 1900) },
-            pageAccessToken
-          );
-        }
-      } catch (err) {
-        console.error(err);
-        return sendMessage(senderId, { text: 'Error: Could not fetch inbox.' }, pageAccessToken);
-      }
-    } else {
-      return sendMessage(senderId, { text: 'Usage: -tempmail gen OR -tempmail inbox <full email>' }, pageAccessToken);
     }
-  },
 };
