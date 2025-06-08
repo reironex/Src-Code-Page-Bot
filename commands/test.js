@@ -1,46 +1,42 @@
 const fetch = require('node-fetch');
-const cheerio = require('cheerio');
 const { sendMessage } = require('../handles/sendMessage');
+
+const BASE_URL = 'https://tempr.email/api/v1';
 
 module.exports = {
   name: 'tempmail',
-  description: 'Generate temporary email and check inbox (moakt.com scraper)',
-  usage: '-tempmail gen OR -tempmail inbox <username> OR -tempmail read <username> <msgId>',
+  description: 'Generate temporary email and check inbox (tempr.email public API)',
+  usage: '-tempmail gen OR -tempmail inbox <mailboxId> OR -tempmail read <messageId>',
   author: 'coffee',
 
   async execute(senderId, args, pageAccessToken) {
-    const [cmd, param1, param2] = args;
-    const usageMsg = { text: 'Usage: -tempmail gen OR -tempmail inbox <username> OR -tempmail read <username> <msgId>' };
+    const [cmd, param1] = args;
+    const usageMsg = { text: 'Usage: -tempmail gen OR -tempmail inbox <mailboxId> OR -tempmail read <messageId>' };
 
     if (cmd === 'gen') {
-      const username = Math.random().toString(36).substring(2, 10);
-      const address = `${username}@moakt.cc`;
+      try {
+        const resp = await fetch(`${BASE_URL}/mailbox`);
+        const data = await resp.json();
 
-      return sendMessage(senderId, {
-        text: `📧 | Temporary Email: ${address}\nUse "-tempmail inbox ${username}" to check inbox.`
-      }, pageAccessToken);
+        const mailboxId = data.mailbox.id;
+        const address = data.mailbox.email;
+
+        return sendMessage(senderId, {
+          text: `📧 | Temporary Email: ${address}\nMailbox ID: ${mailboxId}\n\nUse "-tempmail inbox ${mailboxId}" to check inbox.`
+        }, pageAccessToken);
+      } catch (err) {
+        console.error(err);
+        return sendMessage(senderId, { text: '❌ Error: Could not generate email.' }, pageAccessToken);
+      }
     }
 
     if (cmd === 'inbox' && param1) {
-      const username = param1;
+      const mailboxId = param1;
       try {
-        const resp = await fetch(`https://www.moakt.com/en/inbox/${username}`);
-        const html = await resp.text();
-        const $ = cheerio.load(html);
+        const resp = await fetch(`${BASE_URL}/mailbox/${mailboxId}/messages`);
+        const data = await resp.json();
 
-        const messages = [];
-
-        $('table tbody tr').each((i, el) => {
-          const cols = $(el).find('td');
-          const msgId = $(cols[0]).find('a').attr('href')?.split('/').pop();
-          const from = $(cols[1]).text().trim();
-          const subject = $(cols[2]).text().trim();
-          const date = $(cols[3]).text().trim();
-
-          if (msgId) {
-            messages.push({ msgId, from, subject, date });
-          }
-        });
+        const messages = data?.messages || [];
 
         if (!messages.length) {
           return sendMessage(senderId, { text: '📭 | Inbox is empty.' }, pageAccessToken);
@@ -48,7 +44,7 @@ module.exports = {
 
         let out = '📬 | Latest messages:\n';
         messages.forEach(msg => {
-          out += `\nID: ${msg.msgId}\nFrom: ${msg.from}\nSubject: ${msg.subject}\nDate: ${msg.date}\n`;
+          out += `\nID: ${msg.id}\nFrom: ${msg.from}\nSubject: ${msg.subject}\nDate: ${msg.createdAt}\n`;
         });
 
         await sendMessage(senderId, { text: out }, pageAccessToken);
@@ -58,16 +54,13 @@ module.exports = {
       }
     }
 
-    if (cmd === 'read' && param1 && param2) {
-      const username = param1;
-      const msgId = param2;
+    if (cmd === 'read' && param1) {
+      const messageId = param1;
       try {
-        const resp = await fetch(`https://www.moakt.com/en/message/${username}/${msgId}`);
-        const html = await resp.text();
-        const $ = cheerio.load(html);
+        const resp = await fetch(`${BASE_URL}/message/${messageId}`);
+        const msgData = await resp.json();
 
-        const content = $('#email_content').text().trim() || 'No content.';
-
+        const content = msgData?.text || msgData?.html || 'No content.';
         for (let i = 0; i < content.length; i += 1900) {
           await sendMessage(senderId, { text: content.slice(i, i + 1900) }, pageAccessToken);
         }
