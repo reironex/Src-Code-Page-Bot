@@ -13,29 +13,25 @@ module.exports = {
 
     if (cmd === 'gen') {
       const name = Math.random().toString(36).slice(2, 10);
-      return sendMessage(senderId, { text: `📧 | Temporary Email: ${name}@maildrop.cc\nUse "-tempmail inbox ${name}" to check.` }, pageAccessToken);
+      return sendMessage(senderId, {
+        text: `📧 | Temporary Email: ${name}@maildrop.cc\nUse "-tempmail inbox ${name}" to check.`
+      }, pageAccessToken);
     }
 
     if (cmd === 'inbox' && inboxName) {
       try {
-        const resp = await fetch('https://api.maildrop.cc/graphql', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: `query($name:String!){inbox(name:$name){messages{id from subject date text}}}`,
-            variables: { name: inboxName }
-          })
-        });
-        const messages = (await resp.json())?.data?.inbox?.messages;
-        if (!messages?.length) return sendMessage(senderId, { text: '📭 | Inbox is empty or doesn’t exist.' }, pageAccessToken);
+        const resp = await fetch(`https://maildrop.cc/api/inbox/${inboxName}`);
+        const data = await resp.json();
+        const messages = data?.messages;
+        
+        if (!messages?.length)
+          return sendMessage(senderId, { text: '📭 | Inbox is empty or doesn’t exist.' }, pageAccessToken);
 
-        const { from, subject, date, text = '' } = messages[0];
-        await sendMessage(senderId, { text: `📬 From: ${from}\nDate: ${new Date(date).toLocaleString()}\nSubject: ${subject}` }, pageAccessToken);
+        const { from, subject, time, id } = messages[0];
+        await sendMessage(senderId, {
+          text: `📬 From: ${from}\nTime: ${time}\nSubject: ${subject}\nMessage ID: ${id}`
+        }, pageAccessToken);
 
-        for (let i = 0; i < text.length; i += 1900)
-          await sendMessage(senderId, { text: text.slice(i, i + 1900) }, pageAccessToken);
-
-        return;
       } catch (err) {
         console.error(err);
         return sendMessage(senderId, { text: '❌ Error: Could not fetch inbox.' }, pageAccessToken);
