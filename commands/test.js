@@ -28,21 +28,13 @@ module.exports = {
   usage: '\ngemini [question] (reply to an image)',
   author: 'coffee',
 
-  async execute(senderId, args, pageAccessToken, event, imageCache) {
+  async execute(senderId, args, pageAccessToken, event) {
     const prompt = args.join(' ').trim();
     if (!prompt) {
       return sendMessage(senderId, { text: "Ask me something!" }, pageAccessToken);
     }
 
-    let imageUrl = await getImageUrl(event, pageAccessToken);
-
-    if (!imageUrl && imageCache) {
-      const cachedImage = imageCache.get(senderId);
-      if (cachedImage && Date.now() - cachedImage.timestamp <= 5 * 60 * 1000) {
-        imageUrl = cachedImage.url;
-        console.log(`Using cached image for sender ${senderId}: ${imageUrl}`);
-      }
-    }
+    const imageUrl = await getImageUrl(event, pageAccessToken);
 
     let imagePart = null;
     if (imageUrl) {
