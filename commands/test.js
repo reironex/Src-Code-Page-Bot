@@ -2,6 +2,7 @@ const axios = require('axios');
 const { sendMessage } = require('../handles/sendMessage');
 
 const GEMINI_API_KEY = 'AIzaSyAowq5pmdXV8GZ4xJrGKSgjsQQ3Ds48Dlg';
+const conversations = new Map();
 
 const getImageUrl = async (event, token) => {
   const mid = event?.message?.reply_to?.mid || event?.message?.mid;
@@ -21,8 +22,8 @@ const getImageUrl = async (event, token) => {
 
 module.exports = {
   name: 'test',
-  description: 'Ask Gemini 2.0 Flash with optional image analysis',
-  usage: '\ngemini [question] (optionally reply to an image)',
+  description: 'Ask Gemini 2.0 Flash with conversation and optional image',
+  usage: '\ngemini [message]',
   author: 'coffee',
 
   async execute(senderId, args, pageAccessToken, event) {
@@ -32,8 +33,8 @@ module.exports = {
     }
 
     const imageUrl = await getImageUrl(event, pageAccessToken);
-
     let imagePart = null;
+
     if (imageUrl) {
       try {
         const imgResp = await axios.get(imageUrl, { responseType: 'arraybuffer' });
@@ -42,7 +43,7 @@ module.exports = {
         imagePart = {
           inline_data: {
             mimeType,
-            data: base64,
+            data: base64
           }
         };
       } catch (err) {
@@ -51,9 +52,12 @@ module.exports = {
       }
     }
 
-    const parts = imagePart ? [{ text: prompt }, imagePart] : [{ text: prompt }];
+    const history = conversations.get(senderId) || [];
+    const userParts = imagePart ? [{ text: prompt }, imagePart] : [{ text: prompt }];
+    history.push({ role: "user", parts: userParts });
+
     const payload = {
-      contents: [{ role: "user", parts }],
+      contents: history,
       generationConfig: { responseMimeType: "text/plain" }
     };
 
@@ -65,6 +69,11 @@ module.exports = {
       );
 
       const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      if (reply) {
+        history.push({ role: "model", parts: [{ text: reply }] });
+        conversations.set(senderId, history.slice(-20));
+      }
+
       sendMessage(senderId, {
         text: reply ? `⚡ Gemini Flash\n\n${reply}` : "No reply received."
       }, pageAccessToken);
