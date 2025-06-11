@@ -2,10 +2,10 @@ const { Hercai } = require("hercai");
 const axios = require("axios");
 const { sendMessage } = require("../handles/sendMessage");
 
-const hercai = new Hercai();
-const imageCache = new Map();
-const conversationHistory = new Map();
-const HISTORY_LIMIT = 10;
+const hercai = new Hercai({}); // Safe constructor
+const imageCache = new Map(); // For temporary image reuse
+const conversationHistory = new Map(); // Per-sender memory
+const HISTORY_LIMIT = 10; // Messages to remember per user
 
 const getImageUrl = async (event, token) => {
   const mid = event?.message?.reply_to?.mid || event?.message?.mid;
@@ -25,7 +25,7 @@ const getImageUrl = async (event, token) => {
 
 module.exports = {
   name: 'test',
-  description: 'Ask Hercai AI anything, including images and context.',
+  description: 'Ask Hercai AI anything, including image replies.',
   usage: '\nhercai [question or reply to image]',
   author: 'coffee',
 
@@ -35,9 +35,11 @@ module.exports = {
     }
 
     const prompt = args.join(" ").trim();
+
+    // First try reply_to image
     let imageUrl = await getImageUrl(event, pageAccessToken);
 
-    // Fallback to cached image if available
+    // If none, fallback to cached image if available
     if (!imageUrl && imageCache.has(senderId)) {
       const cached = imageCache.get(senderId);
       if (Date.now() - cached.timestamp <= 5 * 60 * 1000) {
@@ -66,7 +68,6 @@ module.exports = {
               { type: "image", image_url: { url: base64Image } }
             ];
 
-        // Update image cache
         imageCache.set(senderId, {
           url: imageUrl,
           timestamp: Date.now()
@@ -79,7 +80,7 @@ module.exports = {
       content = prompt;
     }
 
-    // Prepare conversation context
+    // Build message history for Hercai
     const history = conversationHistory.get(senderId) || [];
     history.push({ role: "user", content });
 
@@ -95,7 +96,6 @@ module.exports = {
         if (chunk.reply) fullReply += chunk.reply;
       }
 
-      // Add assistant reply to history
       history.push({ role: "assistant", content: fullReply });
       conversationHistory.set(senderId, history.slice(-HISTORY_LIMIT));
 
