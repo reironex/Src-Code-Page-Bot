@@ -3,7 +3,7 @@ const { sendMessage } = require('../handles/sendMessage');
 
 module.exports = {
   name: 'ai',
-  description: 'Interact with Mocha AI using text queries and image analysis',
+  description: 'Interact with Mocha AI using text queries.',
   usage: 'ask a question',
   author: 'coffee',
 
