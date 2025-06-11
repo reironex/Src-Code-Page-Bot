@@ -3,6 +3,7 @@ const { sendMessage } = require('../handles/sendMessage');
 
 const GEMINI_API_KEY = 'AIzaSyAowq5pmdXV8GZ4xJrGKSgjsQQ3Ds48Dlg';
 const conversations = new Map();
+const lastImageBySender = new Map();
 
 const getImageUrl = async (event, token) => {
   const mid = event?.message?.reply_to?.mid || event?.message?.mid;
@@ -13,7 +14,8 @@ const getImageUrl = async (event, token) => {
       params: { access_token: token }
     });
 
-    return data?.data?.[0]?.image_data?.url || data?.data?.[0]?.file_url || null;
+    const imageUrl = data?.data?.[0]?.image_data?.url || data?.data?.[0]?.file_url || null;
+    return imageUrl;
   } catch (err) {
     console.error("Image URL fetch error:", err?.response?.data || err.message);
     return null;
@@ -29,12 +31,19 @@ module.exports = {
   async execute(senderId, args, pageAccessToken, event) {
     const prompt = args.join(' ').trim();
     if (!prompt) {
-      return sendMessage(senderId, { text: "Ask me something!" }, pageAccessToken);
+      return sendMessage(senderId, {
+        text: "Ask me something!"
+      }, pageAccessToken);
     }
 
-    const imageUrl = await getImageUrl(event, pageAccessToken);
-    let imagePart = null;
+    let imageUrl = await getImageUrl(event, pageAccessToken);
+    if (imageUrl) {
+      lastImageBySender.set(senderId, imageUrl);
+    } else {
+      imageUrl = lastImageBySender.get(senderId) || null;
+    }
 
+    let imagePart = null;
     if (imageUrl) {
       try {
         const imgResp = await axios.get(imageUrl, { responseType: 'arraybuffer' });
@@ -48,7 +57,9 @@ module.exports = {
         };
       } catch (err) {
         console.error("Image download error:", err.message);
-        return sendMessage(senderId, { text: "Failed to process the image." }, pageAccessToken);
+        return sendMessage(senderId, {
+          text: "Failed to process the image."
+        }, pageAccessToken);
       }
     }
 
@@ -74,12 +85,16 @@ module.exports = {
         conversations.set(senderId, history.slice(-20));
       }
 
-      sendMessage(senderId, {
-        text: reply ? `⚡ Gemini Flash\n\n${reply}` : "No reply received."
-      }, pageAccessToken);
+      const message = reply
+        ? `💬 | 𝙶𝚘𝚘𝚐𝚕𝚎 𝙶𝚎𝚖𝚒𝚗𝚒\n・───────────・\n${reply}\n・──── >ᴗ< ────・`
+        : "No reply received.";
+
+      sendMessage(senderId, { text: message }, pageAccessToken);
     } catch (err) {
       console.error("Gemini Flash Error:", err?.response?.data || err.message);
-      sendMessage(senderId, { text: "Failed to get a response from Gemini Flash." }, pageAccessToken);
+      sendMessage(senderId, {
+        text: "Failed to get a response from Gemini Flash."
+      }, pageAccessToken);
     }
   }
 };
