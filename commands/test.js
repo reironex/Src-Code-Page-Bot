@@ -3,49 +3,84 @@ const { sendMessage } = require('../handles/sendMessage');
 
 module.exports = {
   name: 'test',
-  description: 'Ask GPT-4o (Kaizenji AI) anything.',
-  usage: '\ntest [question]',
+  description: 'Ask Blackbox AI a question.',
+  usage: '\nblackbox [question]',
   author: 'coffee',
 
   async execute(senderId, args, pageAccessToken, event) {
-    if (!event) {
-      return sendMessage(senderId, {
-        text: "💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒\n・───────────・\nSomething went wrong.\n・──── >ᴗ< ────・"
-      }, pageAccessToken);
-    }
+    if (!event) return sendMessage(senderId, { text: "Something went wrong." }, pageAccessToken);
 
-    const prompt = args.join(' ').trim();
-    if (!prompt) {
-      return sendMessage(senderId, {
-        text: "💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒\n・───────────・\nPlease ask me something so I can help you!\n・──── >ᴗ< ────・"
-      }, pageAccessToken);
-    }
+    const prompt = args.join(' ');
+    if (!prompt) return sendMessage(senderId, { text: "Ask me something!" }, pageAccessToken);
+
+    const payload = {
+      messages: [
+        { role: 'user', content: prompt, id: senderId }
+      ],
+      id: senderId,
+      previewToken: null,
+      userId: null,
+      codeModelMode: true,
+      trendingAgentMode: {},
+      isMicMode: false,
+      userSystemPrompt: null,
+      maxTokens: 1024,
+      isChromeExt: false,
+      githubToken: '',
+      clickedAnswer2: false,
+      clickedAnswer3: false,
+      clickedForceWebSearch: false,
+      visitFromDelta: false,
+      isMemoryEnabled: false,
+      mobileClient: false,
+      userSelectedModel: null,
+      validated: '00f37b34-a166-4efb-bce5-1312d87f2f94',
+      imageGenerationMode: false,
+      imageGenMode: 'autoMode',
+      webSearchModePrompt: false,
+      deepSearchMode: false,
+      domains: null,
+      vscodeClient: false,
+      codeInterpreterMode: false,
+      customProfile: {
+        name: '',
+        occupation: '',
+        traits: [],
+        additionalInfo: '',
+        enableNewChats: false
+      },
+      webSearchModeOption: {
+        autoMode: true,
+        webMode: false,
+        offlineMode: false
+      },
+      session: null,
+      isPremium: false,
+      subscriptionCache: null,
+      beastMode: false,
+      reasoningMode: false,
+      designerMode: false,
+      workspaceId: '',
+      asyncMode: false,
+      isTaskPersistent: false
+    };
 
     try {
-      const { data } = await axios.get('https://kaiz-apis.gleeze.com/api/gpt-4o', {
-        params: {
-          ask: prompt,
-          uid: senderId,
-          webSearch: prompt,
-          apikey: 'b59784be-020d-4a15-bb50-3cfb0f1ae5b0'
+      const { data } = await axios.post('https://www.blackbox.ai/api/chat', payload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
+          'Origin': 'https://www.blackbox.ai',
+          'Referer': `https://www.blackbox.ai/chat/${senderId}`,
+          'Cookie': 'sessionId=336f68f2-86a9-4653-a5b5-b26e4c5f04d1',
+          'Accept': '*/*'
         }
       });
 
-      const reply = data?.response?.trim();
-      if (reply) {
-        sendMessage(senderId, {
-          text: `💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒\n・───────────・\n${reply}\n・──── >ᴗ< ────・`
-        }, pageAccessToken);
-      } else {
-        sendMessage(senderId, {
-          text: "💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒\n・───────────・\nI couldn't come up with an answer.\n・──── >ᴗ< ────・"
-        }, pageAccessToken);
-      }
+      sendMessage(senderId, { text: `🧠 Blackbox AI\n\n${data}` }, pageAccessToken);
     } catch (err) {
-      console.error('Kaiz API Error:', err.message);
-      sendMessage(senderId, {
-        text: "💬 | 𝙼𝚘𝚌𝚑𝚊 𝙰𝚒\n・───────────・\nFailed to get a response from Kaiz API.\n・──── >ᴗ< ────・"
-      }, pageAccessToken);
+      console.error(err?.response?.data || err.message);
+      sendMessage(senderId, { text: "Blackbox AI failed to respond." }, pageAccessToken);
     }
   }
 };
