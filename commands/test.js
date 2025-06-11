@@ -1,67 +1,89 @@
 const axios = require('axios');
 const { sendMessage } = require('../handles/sendMessage');
 
+const GEMINI_API_KEY = Buffer.from(
+  'QUl6YVN5QW93cTVwbWRYVjhHWjR4SnJHS1NnanNRUTNEczQ4RGxn',
+  'base64'
+).toString('utf8');
+
+const getImageUrl = async (event, token) => {
+  const mid = event?.message?.reply_to?.mid || event?.message?.mid;
+  if (!mid) return null;
+
+  try {
+    const { data } = await axios.get(`https://graph.facebook.com/v22.0/${mid}/attachments`, {
+      params: { access_token: token }
+    });
+
+    return data?.data?.[0]?.image_data?.url || data?.data?.[0]?.file_url || null;
+  } catch (err) {
+    console.error("Image URL fetch error:", err?.response?.data || err.message);
+    return null;
+  }
+};
+
 module.exports = {
   name: 'test',
-  description: 'Ask a question using Blackbox AI.',
-  usage: '\ntest [question]',
+  description: 'Ask Gemini (with optional image).',
+  usage: '\ngemini [question] (reply to an image)',
   author: 'coffee',
 
-  async execute(senderId, args, pageAccessToken, event) {
-    if (!event) {
-      return sendMessage(senderId, { text: "Something went wrong." }, pageAccessToken);
+  async execute(senderId, args, pageAccessToken, event, imageCache) {
+    const prompt = args.join(' ').trim();
+    if (!prompt) {
+      return sendMessage(senderId, { text: "Ask me something!" }, pageAccessToken);
     }
 
-    const prompt = args.join(' ');
-    if (!prompt) {
-      return sendMessage(senderId, { text: "Please ask something." }, pageAccessToken);
+    let imageUrl = await getImageUrl(event, pageAccessToken);
+
+    if (!imageUrl && imageCache) {
+      const cachedImage = imageCache.get(senderId);
+      if (cachedImage && Date.now() - cachedImage.timestamp <= 5 * 60 * 1000) {
+        imageUrl = cachedImage.url;
+        console.log(`Using cached image for sender ${senderId}: ${imageUrl}`);
+      }
     }
+
+    let imagePart = null;
+    if (imageUrl) {
+      try {
+        const imgResp = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+        const base64 = Buffer.from(imgResp.data, 'binary').toString('base64');
+        const mimeType = imgResp.headers['content-type'];
+        imagePart = {
+          inline_data: {
+            mimeType,
+            data: base64,
+          },
+        };
+      } catch (err) {
+        console.error("Image download error:", err.message);
+        return sendMessage(senderId, { text: "Failed to process the image." }, pageAccessToken);
+      }
+    }
+
+    const contents = [
+      {
+        parts: imagePart
+          ? [{ text: prompt }, imagePart]
+          : [{ text: prompt }],
+      },
+    ];
 
     try {
-      const body = {
-        messages: [{ role: 'user', content: prompt, id: senderId }],
-        id: senderId,
-        codeModelMode: true,
-        isMicMode: false,
-        maxTokens: 1024,
-        imageGenerationMode: false,
-        imageGenMode: 'autoMode',
-        deepSearchMode: false,
-        userSelectedModel: null,
-        validated: '00f37b34-a166-4efb-bce5-1312d87f2f94',
-        webSearchModeOption: { autoMode: true, webMode: false, offlineMode: false },
-        customProfile: {
-          name: '',
-          occupation: '',
-          traits: [],
-          additionalInfo: '',
-          enableNewChats: false
-        }
-      };
+      const { data } = await axios.post(
+        `https://generativelanguage.googleapis.com/v1/models/gemini-pro-vision:generateContent?key=${GEMINI_API_KEY}`,
+        { contents },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
 
-      const { data } = await axios.post('https://www.blackbox.ai/api/chat', body, {
-        headers: {
-          'content-type': 'application/json',
-          'user-agent': 'Mozilla/5.0 (Linux; Android 10)',
-          'origin': 'https://www.blackbox.ai',
-          'referer': `https://www.blackbox.ai/chat/${senderId}`,
-          'accept': '*/*',
-          'cookie': [
-            'render_app_version_affinity=dep-d149ps15pdvs73bbcn30',
-            'sessionId=336f68f2-86a9-4653-a5b5-b26e4c5f04d1',
-            'intercom-id-x55eda6t=aab4d07b-a6b8-4f3a-8177-c77e6bc7c4bb',
-            'intercom-device-id-x55eda6t=7e3922c6-d977-4e5a-a857-4376589d4bec',
-            '__Host-authjs.csrf-token=26ea109817a3a4670b17e20d689ddf15bd590f3d4c63e7e729b27680c548b7d5%7Cd7375ff6e111430dfc88d13771a179866975e5f822eb64e5d843f0cd2abb9820',
-            '__Secure-authjs.callback-url=https%3A%2F%2Fwww.blackbox.ai'
-          ].join('; ')
-        }
-      });
-
-      const response = data.replace(/^\$~~~\$.*?\$~~~\$\n*/s, '').trim();
-      sendMessage(senderId, { text: `🧠 Blackbox AI\n\n${response}` }, pageAccessToken);
+      const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      sendMessage(senderId, {
+        text: reply ? `🤖 Gemini says:\n\n${reply}` : "No reply received."
+      }, pageAccessToken);
     } catch (err) {
-      console.error(err?.response?.data || err.message);
-      sendMessage(senderId, { text: "Failed to get a response from Blackbox AI." }, pageAccessToken);
+      console.error("Gemini API Error:", err?.response?.data || err.message);
+      sendMessage(senderId, { text: "Failed to get a response from Gemini." }, pageAccessToken);
     }
   }
 };
