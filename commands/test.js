@@ -3,7 +3,6 @@ const { sendMessage } = require('../handles/sendMessage');
 
 const GEMINI_API_KEY = 'AIzaSyAowq5pmdXV8GZ4xJrGKSgjsQQ3Ds48Dlg';
 const conversations = new Map();
-const lastImageBySender = new Map();
 
 const getImageUrl = async (event, token) => {
   const mid = event?.message?.reply_to?.mid || event?.message?.mid;
@@ -14,8 +13,7 @@ const getImageUrl = async (event, token) => {
       params: { access_token: token }
     });
 
-    const imageUrl = data?.data?.[0]?.image_data?.url || data?.data?.[0]?.file_url || null;
-    return imageUrl;
+    return data?.data?.[0]?.image_data?.url || data?.data?.[0]?.file_url || null;
   } catch (err) {
     console.error("Image URL fetch error:", err?.response?.data || err.message);
     return null;
@@ -28,22 +26,27 @@ module.exports = {
   usage: '\ngemini [message]',
   author: 'coffee',
 
-  async execute(senderId, args, pageAccessToken, event) {
+  async execute(senderId, args, pageAccessToken, event, sendMessage, imageCache) {
     const prompt = args.join(' ').trim();
     if (!prompt) {
-      return sendMessage(senderId, {
-        text: "Ask me something!"
-      }, pageAccessToken);
+      return sendMessage(senderId, { text: "Ask me something!" }, pageAccessToken);
     }
 
+    // 1. Try reply-to image first
     let imageUrl = await getImageUrl(event, pageAccessToken);
-    if (imageUrl) {
-      lastImageBySender.set(senderId, imageUrl);
-    } else {
-      imageUrl = lastImageBySender.get(senderId) || null;
+
+    // 2. If not found, fallback to imageCache
+    if (!imageUrl && imageCache) {
+      const cached = imageCache.get(senderId);
+      if (cached && Date.now() - cached.timestamp <= 5 * 60 * 1000) {
+        imageUrl = cached.url;
+        console.log(`Using cached image for sender ${senderId}: ${imageUrl}`);
+      }
     }
 
     let imagePart = null;
+
+    // 3. Convert image to base64
     if (imageUrl) {
       try {
         const imgResp = await axios.get(imageUrl, { responseType: 'arraybuffer' });
@@ -57,12 +60,11 @@ module.exports = {
         };
       } catch (err) {
         console.error("Image download error:", err.message);
-        return sendMessage(senderId, {
-          text: "Failed to process the image."
-        }, pageAccessToken);
+        return sendMessage(senderId, { text: "❎ | Failed to process the image." }, pageAccessToken);
       }
     }
 
+    // 4. Build Gemini prompt
     const history = conversations.get(senderId) || [];
     const userParts = imagePart ? [{ text: prompt }, imagePart] : [{ text: prompt }];
     history.push({ role: "user", parts: userParts });
@@ -72,6 +74,7 @@ module.exports = {
       generationConfig: { responseMimeType: "text/plain" }
     };
 
+    // 5. Call Gemini API
     try {
       const { data } = await axios.post(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -92,9 +95,7 @@ module.exports = {
       sendMessage(senderId, { text: message }, pageAccessToken);
     } catch (err) {
       console.error("Gemini Flash Error:", err?.response?.data || err.message);
-      sendMessage(senderId, {
-        text: "Failed to get a response from Gemini Flash."
-      }, pageAccessToken);
+      sendMessage(senderId, { text: "❎ | Failed to get a response from Gemini Flash." }, pageAccessToken);
     }
   }
 };
