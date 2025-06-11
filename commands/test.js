@@ -1,10 +1,7 @@
 const axios = require('axios');
 const { sendMessage } = require('../handles/sendMessage');
 
-const GEMINI_API_KEY = Buffer.from(
-  'QUl6YVN5QW93cTVwbWRYVjhHWjR4SnJHS1NnanNRUTNEczQ4RGxn',
-  'base64'
-).toString('utf8');
+const GEMINI_API_KEY = 'AIzaSyAowq5pmdXV8GZ4xJrGKSgjsQQ3Ds48Dlg';
 
 const getImageUrl = async (event, token) => {
   const mid = event?.message?.reply_to?.mid || event?.message?.mid;
@@ -24,8 +21,8 @@ const getImageUrl = async (event, token) => {
 
 module.exports = {
   name: 'test',
-  description: 'Ask Gemini (with optional image).',
-  usage: '\ngemini [question] (reply to an image)',
+  description: 'Ask Gemini 2.0 Flash with optional image analysis',
+  usage: '\ngemini [question] (optionally reply to an image)',
   author: 'coffee',
 
   async execute(senderId, args, pageAccessToken, event) {
@@ -46,7 +43,7 @@ module.exports = {
           inline_data: {
             mimeType,
             data: base64,
-          },
+          }
         };
       } catch (err) {
         console.error("Image download error:", err.message);
@@ -54,28 +51,26 @@ module.exports = {
       }
     }
 
-    const contents = [
-      {
-        parts: imagePart
-          ? [{ text: prompt }, imagePart]
-          : [{ text: prompt }],
-      },
-    ];
+    const parts = imagePart ? [{ text: prompt }, imagePart] : [{ text: prompt }];
+    const payload = {
+      contents: [{ role: "user", parts }],
+      generationConfig: { responseMimeType: "text/plain" }
+    };
 
     try {
       const { data } = await axios.post(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-pro-vision:generateContent?key=${GEMINI_API_KEY}`,
-        { contents },
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+        payload,
         { headers: { 'Content-Type': 'application/json' } }
       );
 
       const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
       sendMessage(senderId, {
-        text: reply ? `🤖 Gemini says:\n\n${reply}` : "No reply received."
+        text: reply ? `⚡ Gemini Flash\n\n${reply}` : "No reply received."
       }, pageAccessToken);
     } catch (err) {
-      console.error("Gemini API Error:", err?.response?.data || err.message);
-      sendMessage(senderId, { text: "Failed to get a response from Gemini." }, pageAccessToken);
+      console.error("Gemini Flash Error:", err?.response?.data || err.message);
+      sendMessage(senderId, { text: "Failed to get a response from Gemini Flash." }, pageAccessToken);
     }
   }
 };
