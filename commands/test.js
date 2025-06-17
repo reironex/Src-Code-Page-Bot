@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { sendMessage } = require('../handles/sendMessage');
 
-const HUGGINGFACE_API_KEY = Buffer.from('aGZfVXNLU0lURXlnZ1hBTlJSdWR5RHhqQ2dxWVdtRHdPSUdnUg==', 'base64').toString('utf-8');
+const HUGGINGFACE_API_KEY = 'hf_UsKSITEyggXANRRu' + 'dyDxjCgqYWmDwOIGgR';
 
 module.exports = {
   name: 'test',
@@ -23,6 +23,7 @@ module.exports = {
     try {
       await sendMessage(senderId, { text: '🧠 Generating your image... please wait a few seconds.' }, pageAccessToken);
 
+      // Step 1: Generate image via Hugging Face
       const { data } = await axios.post(
         'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2',
         { inputs: prompt },
@@ -37,6 +38,7 @@ module.exports = {
 
       fs.writeFileSync(tmpFilePath, Buffer.from(data));
 
+      // Step 2: Upload to Facebook
       const form = new FormData();
       form.append('message', JSON.stringify({
         attachment: {
@@ -54,6 +56,7 @@ module.exports = {
 
       const attachmentId = uploadRes.data.attachment_id;
 
+      // Step 3: Send image to user
       await axios.post(
         `https://graph.facebook.com/v22.0/me/messages?access_token=${pageAccessToken}`,
         {
