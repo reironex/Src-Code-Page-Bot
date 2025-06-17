@@ -1,47 +1,64 @@
-const axios = require('axios');  
-const fs = require('fs');  
-const path = require('path');  
-const FormData = require('form-data');  
-const { sendMessage } = require('../handles/sendMessage');  
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+const FormData = require('form-data');
+const { sendMessage } = require('../handles/sendMessage');
 
-const decode = str => Buffer.from(str, [98,97,115,101,54,52].map(c => String.fromCharCode(c)).join('')).toString();  
+const key = () => {
+  const src = 'b59784be-020d-4a15-bb50-3cfb0f1ae5b0_e42x';
+  const pick = [11, 24, 3, 21, 9];
+  const k = pick.map(i => src[i]).join('');
+  const hex = '3d3b2a382f7f343f211f36797f7c0c36787432395c173f7e732d1a63200c302f257b652b2e3274327d2b1939';
+  let out = '';
+  for (let i = 0; i < hex.length; i += 2) {
+    const h = hex.substr(i, 2);
+    out += String.fromCharCode(parseInt(h, 16) ^ k.charCodeAt(i / 2 % k.length));
+  }
+  return out;
+};
 
-module.exports = {  
-  name: 'test',  
-  description: 'Generate images via prompt using Flux.',  
-  usage: '-imagegen [prompt]',  
-  author: 'coffee',  
+module.exports = {
+  name: 'test',
+  description: 'Generate images via prompt using Flux.',
+  usage: '-imagegen [prompt]',
+  author: 'coffee',
 
-  execute: async (senderId, args, pageAccessToken) => {  
-    if (!args.length) return sendMessage(senderId, { text: 'Please provide a prompt.' }, pageAccessToken);  
-    const prompt = encodeURIComponent(args.join(' ').trim());  
-    const url = decode('aHR0cHM6Ly9pbWFnZS5wb2xsaW5hdGlvbnMuYWkvcHJvbXB0LyR7cHJvbXB0fT9tb2RlbD1mbHV4JndpZHRoPTEwMjQmaGVpZ2h0PTEwMjQmc2VlZD0xMjM0');  
-    const final = url.replace('${prompt}', prompt);  
+  execute: async (senderId, args, pageAccessToken) => {
+    if (!args.length)
+      return sendMessage(senderId, { text: 'Please provide a prompt.' }, pageAccessToken);
 
-    try {  
-      const img = await axios.get(final, { responseType: 'arraybuffer' });  
-      const file = path.join(__dirname, 'tmp.jpg');  
-      fs.writeFileSync(file, Buffer.from(img.data));  
+    const prompt = encodeURIComponent(args.join(' ').trim());
+    const url = key().replace('${prompt}', prompt);
 
-      const form = new FormData();  
-      form.append('message', JSON.stringify({ attachment: { type: 'image', payload: { is_reusable: true } } }));  
-      form.append('filedata', fs.createReadStream(file));  
+    try {
+      const res = await axios.get(url, { responseType: 'arraybuffer' });
+      const temp = path.join(__dirname, 'tmp.jpg');
+      fs.writeFileSync(temp, Buffer.from(res.data));
 
-      const upload = await axios.post(  
-        `https://graph.facebook.com/v22.0/me/message_attachments?access_token=${pageAccessToken}`,  
-        form, { headers: form.getHeaders() }  
-      );  
+      const form = new FormData();
+      form.append('message', JSON.stringify({ attachment: { type: 'image', payload: { is_reusable: true } } }));
+      form.append('filedata', fs.createReadStream(temp));
 
-      const attachmentId = upload.data.attachment_id;  
-      await axios.post(`https://graph.facebook.com/v22.0/me/messages?access_token=${pageAccessToken}`, {  
-        recipient: { id: senderId },  
-        message: { attachment: { type: 'image', payload: { attachment_id: attachmentId } } }  
-      });  
+      const upload = await axios.post(
+        `https://graph.facebook.com/v22.0/me/message_attachments?access_token=${pageAccessToken}`,
+        form,
+        { headers: form.getHeaders() }
+      );
 
-      fs.unlinkSync(file);  
-    } catch (e) {  
-      console.error('ImageGen Error:', e.message);  
-      return sendMessage(senderId, { text: '❎ | Failed to generate image.' }, pageAccessToken);  
-    }  
-  }  
+      await axios.post(`https://graph.facebook.com/v22.0/me/messages?access_token=${pageAccessToken}`, {
+        recipient: { id: senderId },
+        message: {
+          attachment: {
+            type: 'image',
+            payload: { attachment_id: upload.data.attachment_id }
+          }
+        }
+      });
+
+      fs.unlinkSync(temp);
+    } catch (e) {
+      console.error('ImageGen Error:', e.message);
+      return sendMessage(senderId, { text: '❎ | Failed to generate image.' }, pageAccessToken);
+    }
+  }
 };
