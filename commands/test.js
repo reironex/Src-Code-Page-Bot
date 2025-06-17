@@ -4,12 +4,9 @@ const path = require('path');
 const FormData = require('form-data');
 const { sendMessage } = require('../handles/sendMessage');
 
-const API_URL = 'https://sdxl-backend-dev.mangoocean-22f78810.switzerlandnorth.azurecontainerapps.io/predict/generate';
-const BEARER_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlLmNhcHVjY2lub0B5YW5kZXguY29tIn0.NsoOAF-GkxJEYhEKT3WAeewWgAIn61FSqtMONnYumgs';
-
 module.exports = {
   name: 'test',
-  description: 'Generate image using MangoOcean SDXL backend.',
+  description: 'Generate image using Pollinations Flux model.',
   usage: '-imagegen [prompt]',
   author: 'coffee',
 
@@ -18,40 +15,36 @@ module.exports = {
       return sendMessage(senderId, { text: 'Please provide a prompt for image generation.' }, pageAccessToken);
     }
 
-    const prompt = args.join(' ').trim();
+    const prompt = encodeURIComponent(args.join(' ').trim());
+    const seed = Math.floor(Math.random() * 1000000);
+    const url = `https://image.pollinations.ai/prompt/${prompt}?model=flux&width=1024&height=1024&nologo=true&private=false&enhance=false&safe=false&referrer=sec${seed}&seed=${seed}`;
 
     try {
-      // Step 1: Request image generation
-      const genRes = await axios.post(API_URL, {
-        promptInput: {
-          prompt_positive: prompt,
-          style_code: 'sd35-large-turbo',
-          format_code: 'square',
-          batch_nbr: 1
-        },
-        config: { is_default: true }
-      }, {
+      // Step 1: Download the image
+      const imageRes = await axios.get(url, {
+        responseType: 'arraybuffer',
         headers: {
-          'Authorization': `Bearer ${BEARER_TOKEN}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0',
-          'Origin': 'https://gen-image.com'
+          'accept': 'application/json, text/plain, */*',
+          'user-agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
+          'origin': 'https://827e3247e183969c5f8c06b88c48dd73.perchance.org',
+          'referer': 'https://827e3247e183969c5f8c06b88c48dd73.perchance.org',
+          'sec-ch-ua': '"Brave";v="137", "Chromium";v="137", "Not/A)Brand";v="24"',
+          'sec-ch-ua-mobile': '?1',
+          'sec-ch-ua-platform': '"Android"',
+          'sec-gpc': '1',
+          'accept-language': 'en-US,en;q=0.8',
+          'accept-encoding': 'gzip, deflate, br, zstd',
+          'sec-fetch-site': 'cross-site',
+          'sec-fetch-mode': 'cors',
+          'sec-fetch-dest': 'empty'
         }
       });
 
-      const imageUrl = genRes.data?.output_url;
-      if (!imageUrl) {
-        throw new Error('Image URL not returned.');
-      }
-
-      // Step 2: Download the image
-      const imageRes = await axios.get(imageUrl, { responseType: 'arraybuffer' });
       const buffer = Buffer.from(imageRes.data);
-      const tmpPath = path.join(__dirname, `mango_image_${Date.now()}.webp`);
+      const tmpPath = path.join(__dirname, `pollinations_image_${Date.now()}.jpg`);
       fs.writeFileSync(tmpPath, buffer);
 
-      // Step 3: Upload to Facebook
+      // Step 2: Upload to Facebook
       const form = new FormData();
       form.append('message', JSON.stringify({
         attachment: {
@@ -69,7 +62,7 @@ module.exports = {
 
       const attachmentId = uploadRes.data.attachment_id;
 
-      // Step 4: Send to user
+      // Step 3: Send the image to the user
       await axios.post(
         `https://graph.facebook.com/v22.0/me/messages?access_token=${pageAccessToken}`,
         {
@@ -83,9 +76,9 @@ module.exports = {
         }
       );
 
-      fs.unlinkSync(tmpPath);
+      fs.unlinkSync(tmpPath); // Clean up temp file
     } catch (err) {
-      console.error('MangoOcean ImageGen Error:', err.response?.data || err.message || err);
+      console.error('Pollinations ImageGen Error:', err.response?.data || err.message || err);
       return sendMessage(senderId, { text: '❎ | Failed to generate image. Please try again later.' }, pageAccessToken);
     }
   }
