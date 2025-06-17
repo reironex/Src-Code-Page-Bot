@@ -1,10 +1,11 @@
 const axios = require('axios');
-const FormData = require('form-data');
 const fs = require('fs');
 const path = require('path');
+const FormData = require('form-data');
 const { sendMessage } = require('../handles/sendMessage');
 
-const FIREWORKS_API_KEY = 'fw_3ZXTUSf6onY34ESu4r6D3WFF';
+const KAIZEN_API = 'https://kaiz-apis.gleeze.com/api/flux-realtime';
+const KAIZEN_API_KEY = 'b59784be-020d-4a15-bb50-3cfb0f1ae5b0';
 
 module.exports = {
   name: 'imagegen',
@@ -20,25 +21,23 @@ module.exports = {
     const prompt = args.join(' ').trim();
 
     try {
-      // Step 1: Generate image with Fireworks
-      const response = await axios.post(
-        'https://api.fireworks.ai/inference/v1/workflows/accounts/fireworks/models/flux-1-schnell-fp8/text_to_image',
-        { prompt },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'image/jpeg',
-            'Authorization': `Bearer ${FIREWORKS_API_KEY}`
-          },
-          responseType: 'arraybuffer'
-        }
-      );
+      // Step 1: Request image URL
+      const res = await axios.get(KAIZEN_API, {
+        params: { prompt, stream: 'false', apikey: KAIZEN_API_KEY }
+      });
 
-      const imageBuffer = Buffer.from(response.data);
-      const tmpFilePath = path.join(__dirname, 'tmp_image.jpg');
-      fs.writeFileSync(tmpFilePath, imageBuffer);
+      const imageUrl = res.data?.url;
+      if (!imageUrl) {
+        throw new Error('No image URL returned from API.');
+      }
 
-      // Step 2: Upload to Facebook
+      // Step 2: Download the image
+      const imgRes = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+      const buffer = Buffer.from(imgRes.data);
+      const tmpPath = path.join(__dirname, 'tmp_image.webp');
+      fs.writeFileSync(tmpPath, buffer);
+
+      // Step 3: Upload to Facebook
       const form = new FormData();
       form.append('message', JSON.stringify({
         attachment: {
@@ -46,7 +45,7 @@ module.exports = {
           payload: { is_reusable: true }
         }
       }));
-      form.append('filedata', fs.createReadStream(tmpFilePath));
+      form.append('filedata', fs.createReadStream(tmpPath));
 
       const uploadRes = await axios.post(
         `https://graph.facebook.com/v22.0/me/message_attachments?access_token=${pageAccessToken}`,
@@ -56,7 +55,7 @@ module.exports = {
 
       const attachmentId = uploadRes.data.attachment_id;
 
-      // Step 3: Send to user via attachment_id
+      // Step 4: Send image to user
       await axios.post(
         `https://graph.facebook.com/v22.0/me/messages?access_token=${pageAccessToken}`,
         {
@@ -64,15 +63,13 @@ module.exports = {
           message: {
             attachment: {
               type: 'image',
-              payload: {
-                attachment_id: attachmentId
-              }
+              payload: { attachment_id: attachmentId }
             }
           }
         }
       );
 
-      fs.unlinkSync(tmpFilePath); // Clean up temp file
+      fs.unlinkSync(tmpPath);
     } catch (err) {
       console.error('ImageGen Error:', err.response?.data || err.message || err);
       return sendMessage(senderId, { text: '❎ | Failed to generate image. Please try again later.' }, pageAccessToken);
