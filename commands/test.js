@@ -15,8 +15,8 @@ module.exports = {
 
     const prompt = encodeURIComponent(args.join(' ').trim());
     const seed = Math.floor(Math.random() * 999999);
-    const url = `https://image.pollinations.ai/prompt/${prompt}?model=flux&width=1024&height=1024`;
-    const tmp = path.join(__dirname, `flux.jpg`);
+    const url = `https://image.pollinations.ai/prompt/${prompt}?model=flux&width=1024&height=1024&seed=${seed}`;
+    const tmp = path.join(__dirname, `flux_${seed}.jpg`);
 
     try {
       const res = await axios.get(url, { responseType: 'arraybuffer' });
@@ -26,7 +26,12 @@ module.exports = {
       form.append('message', JSON.stringify({ attachment: { type: 'image', payload: { is_reusable: true } } }));
       form.append('filedata', fs.createReadStream(tmp));
 
-      const upload = await axios.post(`https://graph.facebook.com/v22.0/me/message_attachments?access_token=${token}`, form, { headers: form.getHeaders() });
+      const upload = await axios.post(
+        `https://graph.facebook.com/v22.0/me/message_attachments?access_token=${token}`,
+        form,
+        { headers: form.getHeaders() }
+      );
+
       const id = upload.data.attachment_id;
 
       await axios.post(`https://graph.facebook.com/v22.0/me/messages?access_token=${token}`, {
