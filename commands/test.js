@@ -9,7 +9,7 @@ const decode = str => Buffer.from(str, [98,97,115,101,54,52].map(c => String.fro
 const base = Buffer.from(key).toString([98,97,115,101,54,52].map(c => String.fromCharCode(c)).join(''));
 
 module.exports = {
-  name: 'imagegen',
+  name: 'test',
   description: 'Generate images via prompt using Flux.',
   usage: '-imagegen [prompt]',
   author: 'coffee',
