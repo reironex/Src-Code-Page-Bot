@@ -4,9 +4,12 @@ const path = require('path');
 const FormData = require('form-data');
 const { sendMessage } = require('../handles/sendMessage');
 
+const API_URL = 'https://sdxl-backend-dev.mangoocean-22f78810.switzerlandnorth.azurecontainerapps.io/predict/generate';
+const BEARER_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlLmNhcHVjY2lub0B5YW5kZXguY29tIn0.NsoOAF-GkxJEYhEKT3WAeewWgAIn61FSqtMONnYumgs';
+
 module.exports = {
   name: 'test',
-  description: 'Generate image using Pollinations Flux model.',
+  description: 'Generate image using MangoOcean SDXL backend.',
   usage: '-imagegen [prompt]',
   author: 'coffee',
 
@@ -15,35 +18,40 @@ module.exports = {
       return sendMessage(senderId, { text: 'Please provide a prompt for image generation.' }, pageAccessToken);
     }
 
-    const prompt = encodeURIComponent(args.join(' ').trim());
-    const url = `https://image.pollinations.ai/prompt/${prompt}?width=1024&height=1024&seed=${Math.floor(Math.random() * 100000)}&model=flux&nologo=false&private=false&enhance=false&safe=false`;
+    const prompt = args.join(' ').trim();
 
     try {
-      // Download image
-      const imageRes = await axios.get(url, {
-        responseType: 'arraybuffer',
+      // Step 1: Request image generation
+      const genRes = await axios.post(API_URL, {
+        promptInput: {
+          prompt_positive: prompt,
+          style_code: 'sd35-large-turbo',
+          format_code: 'square',
+          batch_nbr: 1
+        },
+        config: { is_default: true }
+      }, {
         headers: {
-          'accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-          'user-agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
-          'origin': 'https://www.desktophut.com',
-          'referer': 'https://www.desktophut.com/',
-          'sec-ch-ua': '"Brave";v="137", "Chromium";v="137", "Not/A)Brand";v="24"',
-          'sec-ch-ua-mobile': '?1',
-          'sec-ch-ua-platform': '"Android"',
-          'sec-gpc': '1',
-          'sec-fetch-site': 'cross-site',
-          'sec-fetch-mode': 'cors',
-          'sec-fetch-dest': 'image',
-          'accept-language': 'en-US,en;q=0.7',
-          'accept-encoding': 'gzip, deflate, br, zstd'
+          'Authorization': `Bearer ${BEARER_TOKEN}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0',
+          'Origin': 'https://gen-image.com'
         }
       });
 
+      const imageUrl = genRes.data?.output_url;
+      if (!imageUrl) {
+        throw new Error('Image URL not returned.');
+      }
+
+      // Step 2: Download the image
+      const imageRes = await axios.get(imageUrl, { responseType: 'arraybuffer' });
       const buffer = Buffer.from(imageRes.data);
-      const tmpPath = path.join(__dirname, 'pollinations_image.jpg');
+      const tmpPath = path.join(__dirname, `mango_image_${Date.now()}.webp`);
       fs.writeFileSync(tmpPath, buffer);
 
-      // Upload image to Facebook
+      // Step 3: Upload to Facebook
       const form = new FormData();
       form.append('message', JSON.stringify({
         attachment: {
@@ -61,7 +69,7 @@ module.exports = {
 
       const attachmentId = uploadRes.data.attachment_id;
 
-      // Send image to user
+      // Step 4: Send to user
       await axios.post(
         `https://graph.facebook.com/v22.0/me/messages?access_token=${pageAccessToken}`,
         {
@@ -75,9 +83,9 @@ module.exports = {
         }
       );
 
-      fs.unlinkSync(tmpPath); // cleanup
+      fs.unlinkSync(tmpPath);
     } catch (err) {
-      console.error('Pollinations ImageGen Error:', err.response?.data || err.message || err);
+      console.error('MangoOcean ImageGen Error:', err.response?.data || err.message || err);
       return sendMessage(senderId, { text: '❎ | Failed to generate image. Please try again later.' }, pageAccessToken);
     }
   }
