@@ -4,11 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const { sendMessage } = require('../handles/sendMessage');
 
-const HUGGINGFACE_API_KEY = 'hf_UsKSITEyggXANRRu' + 'dyDxjCgqYWmDwOIGgR';
-
 module.exports = {
   name: 'test',
-  description: 'Generate images via prompt using Hugging Face Stable Diffusion.',
+  description: 'Generate images via prompt using Craiyon (no API key).',
   usage: '-imagegen [prompt]',
   author: 'coffee',
 
@@ -18,27 +16,15 @@ module.exports = {
     }
 
     const prompt = args.join(' ').trim();
-    const tmpFilePath = path.join(__dirname, 'tmp_image.png');
+    const tmpFilePath = path.join(__dirname, 'craiyon_image.jpg');
 
     try {
-      await sendMessage(senderId, { text: '🧠 Generating your image... please wait a few seconds.' }, pageAccessToken);
+      const genRes = await axios.post('https://api.craiyon.com/v3/', { prompt });
 
-      // Step 1: Generate image via Hugging Face
-      const { data } = await axios.post(
-        'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2',
-        { inputs: prompt },
-        {
-          headers: {
-            Authorization: `Bearer ${HUGGINGFACE_API_KEY}`,
-            Accept: 'image/png'
-          },
-          responseType: 'arraybuffer'
-        }
-      );
+      const base64Image = genRes.data.images[0]; // Use first image
+      const buffer = Buffer.from(base64Image, 'base64');
+      fs.writeFileSync(tmpFilePath, buffer);
 
-      fs.writeFileSync(tmpFilePath, Buffer.from(data));
-
-      // Step 2: Upload to Facebook
       const form = new FormData();
       form.append('message', JSON.stringify({
         attachment: {
@@ -56,7 +42,6 @@ module.exports = {
 
       const attachmentId = uploadRes.data.attachment_id;
 
-      // Step 3: Send image to user
       await axios.post(
         `https://graph.facebook.com/v22.0/me/messages?access_token=${pageAccessToken}`,
         {
@@ -71,7 +56,7 @@ module.exports = {
       );
     } catch (err) {
       console.error('ImageGen Error:', err.response?.data || err.message || err);
-      return sendMessage(senderId, { text: '❎ | Failed to generate image. Try again later.' }, pageAccessToken);
+      return sendMessage(senderId, { text: '❎ | Failed to generate image. Please try again later.' }, pageAccessToken);
     } finally {
       if (fs.existsSync(tmpFilePath)) fs.unlinkSync(tmpFilePath);
     }
