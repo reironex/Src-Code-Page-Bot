@@ -9,7 +9,7 @@ const decode = str => Buffer.from(str, [98,97,115,101,54,52].map(c => String.fro
 const base = Buffer.from(key).toString([98,97,115,101,54,52].map(c => String.fromCharCode(c)).join(''));
 
 module.exports = {
-  name: 'test',
+  name: 'imagegen',
   description: 'Generate images via prompt using Flux.',
   usage: '-imagegen [prompt]',
   author: 'coffee',
@@ -17,7 +17,7 @@ module.exports = {
   execute: async (senderId, args, pageAccessToken) => {
     if (!args.length) return sendMessage(senderId, { text: 'Please provide a prompt.' }, pageAccessToken);
     const prompt = encodeURIComponent(args.join(' ').trim());
-    const url = decode('aHR0cHM6Ly9pbWFnZS5wb2xsaW5hdGlvbnMuYWkvcHJvbXB0LyR7cHJvbXB0fT9tb2RlbD1mbHV4JndpZHRoPTEwMjQmaGVpZ2h0PTEwMjQmc2VlZD0xMjM0');
+    const url = decode('aHR0cHM6Ly9pbWFnZS5wb2xsaW5hdGlvbnMuYWkvcHJvbXB0LyR7cHJvbXB0fT9tb2RlbD1mbHV4JndpZHRoPTEwMjQmaGVpZ2h0PTEwMjQmbm9sb2dvPXRydWUmc2VlZD0xMjM0');
     const final = url.replace('${prompt}', prompt);
 
     try {
