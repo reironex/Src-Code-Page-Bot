@@ -1,30 +1,76 @@
 const axios = require('axios');
+const FormData = require('form-data');
+const fs = require('fs');
+const path = require('path');
 const { sendMessage } = require('../handles/sendMessage');
+
+const HUGGINGFACE_API_KEY = Buffer.from('aGZfVXNLU0lURXlnZ1hBTlJSdWR5RHhqQ2dxWVdtRHdPSUdnUg==', 'base64').toString('utf-8');
 
 module.exports = {
   name: 'test',
-  async execute(senderId, args, pageAccessToken, event) {
-    if (!event) return sendMessage(senderId, { text: "Something went wrong." }, pageAccessToken);
+  description: 'Generate images via prompt using Hugging Face Stable Diffusion.',
+  usage: '-imagegen [prompt]',
+  author: 'coffee',
 
-    const prompt = args.join(' ');
-    if (!prompt) return sendMessage(senderId, { text: "Ask me something!" }, pageAccessToken);
+  execute: async (senderId, args, pageAccessToken) => {
+    if (!args.length) {
+      return sendMessage(senderId, { text: 'Please provide a prompt for image generation.' }, pageAccessToken);
+    }
+
+    const prompt = args.join(' ').trim();
+    const tmpFilePath = path.join(__dirname, 'tmp_image.png');
 
     try {
-      const { data } = await axios.post('https://llm.puter.com/chat', {
-        model: 'deepseek-chat',  // or use 'deepseek-reasoner' for deeper answers
-        messages: [
-          { role: 'system', content: 'You are a helpful assistant.' },
-          { role: 'user', content: prompt }
-        ]
-      });
+      await sendMessage(senderId, { text: '🧠 Generating your image... please wait a few seconds.' }, pageAccessToken);
 
-      console.log('DeepSeek raw data:', data); // 👈 helpful for debugging
-      const reply = data.choices?.[0]?.message?.content ?? '🤔 No response.';
-      sendMessage(senderId, { text: `💬 DeepSeek AI\n\n${reply}` }, pageAccessToken);
+      const { data } = await axios.post(
+        'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2',
+        { inputs: prompt },
+        {
+          headers: {
+            Authorization: `Bearer ${HUGGINGFACE_API_KEY}`,
+            Accept: 'image/png'
+          },
+          responseType: 'arraybuffer'
+        }
+      );
 
+      fs.writeFileSync(tmpFilePath, Buffer.from(data));
+
+      const form = new FormData();
+      form.append('message', JSON.stringify({
+        attachment: {
+          type: 'image',
+          payload: { is_reusable: true }
+        }
+      }));
+      form.append('filedata', fs.createReadStream(tmpFilePath));
+
+      const uploadRes = await axios.post(
+        `https://graph.facebook.com/v22.0/me/message_attachments?access_token=${pageAccessToken}`,
+        form,
+        { headers: form.getHeaders() }
+      );
+
+      const attachmentId = uploadRes.data.attachment_id;
+
+      await axios.post(
+        `https://graph.facebook.com/v22.0/me/messages?access_token=${pageAccessToken}`,
+        {
+          recipient: { id: senderId },
+          message: {
+            attachment: {
+              type: 'image',
+              payload: { attachment_id: attachmentId }
+            }
+          }
+        }
+      );
     } catch (err) {
-      console.error('DeepSeek error:', err.response?.data ?? err.message);
-      sendMessage(senderId, { text: "Failed to get a response from DeepSeek." }, pageAccessToken);
+      console.error('ImageGen Error:', err.response?.data || err.message || err);
+      return sendMessage(senderId, { text: '❎ | Failed to generate image. Try again later.' }, pageAccessToken);
+    } finally {
+      if (fs.existsSync(tmpFilePath)) fs.unlinkSync(tmpFilePath);
     }
   }
 };
