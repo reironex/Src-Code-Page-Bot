@@ -16,7 +16,7 @@ module.exports = {
     const p = encodeURIComponent(args.join(' ').trim());
     const s = Math.floor(Math.random() * 999999);
 
-    const lineDecode = str => Buffer.from(str, 'line').toString();
+    const lineDecode = str => Buffer.from(str, 'base64').toString();
     const joinParts = parts => parts.map(lineDecode).join('');
 
     const baseParts = [
