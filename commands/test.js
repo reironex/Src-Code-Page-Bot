@@ -24,19 +24,7 @@ module.exports = {
       const imageRes = await axios.get(url, {
         responseType: 'arraybuffer',
         headers: {
-          'accept': 'application/json, text/plain, */*',
-          'user-agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
-          'origin': 'https://827e3247e183969c5f8c06b88c48dd73.perchance.org',
-          'referer': 'https://827e3247e183969c5f8c06b88c48dd73.perchance.org',
-          'sec-ch-ua': '"Brave";v="137", "Chromium";v="137", "Not/A)Brand";v="24"',
-          'sec-ch-ua-mobile': '?1',
-          'sec-ch-ua-platform': '"Android"',
-          'sec-gpc': '1',
-          'accept-language': 'en-US,en;q=0.8',
-          'accept-encoding': 'gzip, deflate, br, zstd',
-          'sec-fetch-site': 'cross-site',
-          'sec-fetch-mode': 'cors',
-          'sec-fetch-dest': 'empty'
+          'accept': 'image/*'
         }
       });
 
