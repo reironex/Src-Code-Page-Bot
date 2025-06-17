@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { sendMessage } = require('../handles/sendMessage');
 
-const FIREWORKS_API_KEY = 'fw_3ZUFwM2boU9JvizzBEr5HvJg';
+const FIREWORKS_API_KEY = 'fw_3ZXTUSf6onY34ESu4r6D3WFF';
 
 module.exports = {
   name: 'imagegen',
