@@ -10,10 +10,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@ai-sdk/fireworks": "^0.2.14",
     "@distube/ytsr": "^2.0.4",
     "@types/node": "^18.0.6",
-    "ai": "^4.3.16",
     "axios": "^1.7.2",
     "body-parser": "^1.20.2",
     "cheerio": "^1.0.0",
@@ -25,8 +23,7 @@
     "node-fetch": "^3.3.2",
     "request": "^2.88.2",
     "tempmail.lol": "^4.4.0",
-    "winston": "^3.13.0",
-    "zod": "^3.25.67"
+    "winston": "^3.13.0"
   },
   "engines": {
     "node": "20.x"
