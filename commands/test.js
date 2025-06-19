@@ -20,12 +20,10 @@ module.exports = {
       return sendMessage(id, { text: 'Error: Please provide a song title.' }, token);
     }
 
-    // Step 1: YouTube search
     const result = (await ytsr(`${args.join(' ')} official music video`, { limit: 1 })).items[0];
     if (!result?.url) return sendMessage(id, { text: 'Error: Could not find the song.' }, token);
 
     try {
-      // Step 2: Get MP3 link from Oceansaver
       const { data } = await axios.get(API_BASE, {
         params: {
           copyright: 0,
@@ -48,12 +46,11 @@ module.exports = {
 
       if (!mp3Url) return sendMessage(id, { text: 'Error: MP3 not available.' }, token);
 
-      // Step 3: Ensure temp directory exists
+      // Create temp directory if it doesn't exist
       if (!fs.existsSync(TEMP_DIR)) {
         fs.mkdirSync(TEMP_DIR, { recursive: true });
       }
 
-      // Step 4: Download MP3 to temp folder
       const filePath = path.join(TEMP_DIR, `${Date.now()}.mp3`);
       const writer = fs.createWriteStream(filePath);
 
@@ -64,9 +61,8 @@ module.exports = {
         writer.on('error', reject);
       });
 
-      // Step 5: Upload to Facebook
+      // Upload to Facebook without the `message` field
       const form = new FormData();
-      form.append('message', '');
       form.append('filedata', fs.createReadStream(filePath));
       form.append('type', 'audio');
 
@@ -77,11 +73,10 @@ module.exports = {
       );
 
       const attachmentId = uploadRes.attachment_id;
-      fs.unlinkSync(filePath); // cleanup temp file
+      fs.unlinkSync(filePath); // Clean up temp file
 
       if (!attachmentId) throw new Error('Attachment ID missing');
 
-      // Step 6: Send preview + audio
       await sendMessage(id, {
         attachment: {
           type: 'template',
