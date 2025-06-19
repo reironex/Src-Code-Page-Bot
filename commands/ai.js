@@ -3,8 +3,9 @@ const { sendMessage } = require('../handles/sendMessage');
 
 const GEMINI_API_KEY = 'AIzaSyAowq5pmdXV8GZ4xJrGKSgjsQQ3Ds48Dlg';
 const conversations = new Map();
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// Map normal characters to bold Unicode
+// Bold Unicode font map
 const boldMap = Object.fromEntries(
   [...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789']
     .map(c => [c, String.fromCodePoint(c.charCodeAt(0) + (
@@ -12,15 +13,18 @@ const boldMap = Object.fromEntries(
     ))])
 );
 
-// Convert **text** to Unicode bold with a newline before
+// Convert **text** to Unicode bold with \n before it
 const formatBold = text =>
-  text.replace(/\*\*(.+?)\*\*/g, (_, m) =>
-    '\n' + [...m].map(c => boldMap[c] || c).join('')
+  text.replace(/(^|\s)\*\*(.+?)\*\*(?=\s|$)/g, (_, space, word) =>
+    `${space}\n${[...word].map(c => boldMap[c] || c).join('')}`
   );
 
-// Insert newlines after punctuation
+// Insert \n\n after complete thoughts like an email-style paragraph
 const formatParagraphs = text =>
-  text.replace(/([.!?])\s+/g, '$1\n').replace(/\n{2,}/g, '\n\n');
+  text
+    .replace(/([.!?])(\s+)(?=[A-Z])/g, '$1\n\n')  // break after sentence if next starts with uppercase
+    .replace(/\n{3,}/g, '\n\n')                   // normalize excessive spacing
+    .trim();
 
 const getImageUrl = async (e, token) => {
   const mid = e?.message?.reply_to?.mid || e?.message?.mid;
@@ -91,6 +95,7 @@ module.exports = {
       for (let i = 0; i < chunks.length; i++) {
         const part = (i === 0 ? prefix : '') + chunks[i] + (i === chunks.length - 1 ? suffix : '');
         await sendMessage(senderId, { text: part }, token);
+        if (i < chunks.length - 1) await sleep(750);
       }
     } catch (e) {
       console.error("Gemini error:", e?.response?.data || e.message);
