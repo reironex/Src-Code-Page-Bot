@@ -4,19 +4,21 @@ const { sendMessage } = require('../handles/sendMessage');
 const GEMINI_API_KEY = 'AIzaSyAowq5pmdXV8GZ4xJrGKSgjsQQ3Ds48Dlg';
 const conversations = new Map();
 
-// Bold font map
+// Map normal characters to bold Unicode
 const boldMap = Object.fromEntries(
   [...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789']
-    .map(c => [c, String.fromCodePoint(c.charCodeAt(0) + (/[a-z]/.test(c) ? 0x1D41A - 97 : /[A-Z]/.test(c) ? 0x1D400 - 65 : 0x1D7CE - 48))])
+    .map(c => [c, String.fromCodePoint(c.charCodeAt(0) + (
+      /[a-z]/.test(c) ? 0x1D41A - 97 : /[A-Z]/.test(c) ? 0x1D400 - 65 : 0x1D7CE - 48
+    ))])
 );
 
-// Format **bold** to Unicode + add spacing
+// Convert **text** to Unicode bold with a newline before
 const formatBold = text =>
   text.replace(/\*\*(.+?)\*\*/g, (_, m) =>
-    [...m].map(c => boldMap[c] || c).join('') + '\n\n'
+    '\n' + [...m].map(c => boldMap[c] || c).join('')
   );
 
-// Format paragraphs with line breaks
+// Insert newlines after punctuation
 const formatParagraphs = text =>
   text.replace(/([.!?])\s+/g, '$1\n').replace(/\n{2,}/g, '\n\n');
 
@@ -60,7 +62,7 @@ module.exports = {
             data: Buffer.from(res.data).toString('base64')
           }
         };
-      } catch (e) {
+      } catch {
         return sendMessage(senderId, { text: "❎ | Failed to process the image." }, token);
       }
     }
