@@ -4,6 +4,34 @@ const { sendMessage } = require('../handles/sendMessage');
 const GEMINI_API_KEY = 'AIzaSyAowq5pmdXV8GZ4xJrGKSgjsQQ3Ds48Dlg';
 const conversations = new Map();
 
+// Bold Unicode maps
+const boldMap = {
+  a: '𝗮', b: '𝗯', c: '𝗰', d: '𝗱', e: '𝗲', f: '𝗳', g: '𝗴',
+  h: '𝗵', i: '𝗶', j: '𝗷', k: '𝗸', l: '𝗹', m: '𝗺', n: '𝗻',
+  o: '𝗼', p: '𝗽', q: '𝗾', r: '𝗿', s: '𝘀', t: '𝘁', u: '𝘂',
+  v: '𝘃', w: '𝘄', x: '𝘅', y: '𝘆', z: '𝘇',
+  A: '𝗔', B: '𝗕', C: '𝗖', D: '𝗗', E: '𝗘', F: '𝗙', G: '𝗚',
+  H: '𝗛', I: '𝗜', J: '𝗝', K: '𝗞', L: '𝗟', M: '𝗠', N: '𝗡',
+  O: '𝗢', P: '𝗣', Q: '𝗤', R: '𝗥', S: '𝗦', T: '𝗧', U: '𝗨',
+  V: '𝗩', W: '𝗪', X: '𝗫', Y: '𝗬', Z: '𝗭',
+  0: '𝟬', 1: '𝟭', 2: '𝟮', 3: '𝟯', 4: '𝟰', 5: '𝟱', 6: '𝟲', 7: '𝟳', 8: '𝟴', 9: '𝟵'
+};
+
+// Replace **bold** with Unicode bold
+function formatBoldText(text) {
+  return text.replace(/\*\*(.*?)\*\*/g, (_, match) => {
+    return [...match].map(char => boldMap[char] || char).join('') + '\n';
+  });
+}
+
+// Auto-insert paragraph breaks
+function autoFormatParagraphs(text) {
+  return text
+    .replace(/([.:!?])\s+/g, '$1\n')          // Break after punctuation
+    .replace(/(?<=\n)([A-Z])/g, '\n$1')        // Break before new paragraphs
+    .replace(/\n{2,}/g, '\n');                 // Remove excessive line breaks
+}
+
 const getImageUrl = async (event, token) => {
   const mid = event?.message?.reply_to?.mid || event?.message?.mid;
   if (!mid) return null;
@@ -32,10 +60,8 @@ module.exports = {
       return sendMessage(senderId, { text: "Ask me something!" }, pageAccessToken);
     }
 
-    // 1. Try reply-to image first
     let imageUrl = await getImageUrl(event, pageAccessToken);
 
-    // 2. If not found, fallback to imageCache
     if (!imageUrl && imageCache) {
       const cached = imageCache.get(senderId);
       if (cached && Date.now() - cached.timestamp <= 5 * 60 * 1000) {
@@ -46,7 +72,6 @@ module.exports = {
 
     let imagePart = null;
 
-    // 3. Convert image to base64
     if (imageUrl) {
       try {
         const imgResp = await axios.get(imageUrl, { responseType: 'arraybuffer' });
@@ -64,7 +89,6 @@ module.exports = {
       }
     }
 
-    // 4. Build Gemini prompt
     const history = conversations.get(senderId) || [];
     const userParts = imagePart ? [{ text: prompt }, imagePart] : [{ text: prompt }];
     history.push({ role: "user", parts: userParts });
@@ -74,7 +98,6 @@ module.exports = {
       generationConfig: { responseMimeType: "text/plain" }
     };
 
-    // 5. Call Gemini API
     try {
       const { data } = await axios.post(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -82,8 +105,10 @@ module.exports = {
         { headers: { 'Content-Type': 'application/json' } }
       );
 
-      const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      let reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
       if (reply) {
+        reply = formatBoldText(reply);
+        reply = autoFormatParagraphs(reply);
         history.push({ role: "model", parts: [{ text: reply }] });
         conversations.set(senderId, history.slice(-20));
       }
