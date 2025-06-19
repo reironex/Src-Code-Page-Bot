@@ -4,19 +4,31 @@ const { sendMessage } = require('../handles/sendMessage');
 const GEMINI_API_KEY = 'AIzaSyAowq5pmdXV8GZ4xJrGKSgjsQQ3Ds48Dlg';
 const conversations = new Map();
 
+// Map normal characters to bold Unicode
 const boldMap = Object.fromEntries(
   [...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789']
-    .map(c => [c, String.fromCodePoint(c.charCodeAt(0) + (/[a-z]/.test(c) ? 0x1D41A - 97 : /[A-Z]/.test(c) ? 0x1D400 - 65 : 0x1D7CE - 48))])
+    .map(c => [c, String.fromCodePoint(c.charCodeAt(0) + (
+      /[a-z]/.test(c) ? 0x1D41A - 97 : /[A-Z]/.test(c) ? 0x1D400 - 65 : 0x1D7CE - 48
+    ))])
 );
 
-const formatBold = t => t.replace(/\*\*(.+?)\*\*/g, (_, m) => [...m].map(c => boldMap[c] || c).join('') + '\n');
-const formatParagraphs = t => t.replace(/([.!?])\s+/g, '$1\n').replace(/\n{2,}/g, '\n');
+// Convert **text** to Unicode bold with a newline before
+const formatBold = text =>
+  text.replace(/\*\*(.+?)\*\*/g, (_, m) =>
+    '\n' + [...m].map(c => boldMap[c] || c).join('')
+  );
+
+// Insert newlines after punctuation
+const formatParagraphs = text =>
+  text.replace(/([.!?])\s+/g, '$1\n').replace(/\n{2,}/g, '\n\n');
 
 const getImageUrl = async (e, token) => {
   const mid = e?.message?.reply_to?.mid || e?.message?.mid;
   if (!mid) return null;
   try {
-    const { data } = await axios.get(`https://graph.facebook.com/v22.0/${mid}/attachments`, { params: { access_token: token } });
+    const { data } = await axios.get(`https://graph.facebook.com/v22.0/${mid}/attachments`, {
+      params: { access_token: token }
+    });
     return data?.data?.[0]?.image_data?.url || data?.data?.[0]?.file_url || null;
   } catch (e) {
     console.error("Image fetch error:", e?.response?.data || e.message);
@@ -44,8 +56,13 @@ module.exports = {
     if (url) {
       try {
         const res = await axios.get(url, { responseType: 'arraybuffer' });
-        imagePart = { inline_data: { mimeType: res.headers['content-type'], data: Buffer.from(res.data).toString('base64') } };
-      } catch (e) {
+        imagePart = {
+          inline_data: {
+            mimeType: res.headers['content-type'],
+            data: Buffer.from(res.data).toString('base64')
+          }
+        };
+      } catch {
         return sendMessage(senderId, { text: "❎ | Failed to process the image." }, token);
       }
     }
