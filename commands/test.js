@@ -10,18 +10,21 @@ const API_KEY = 'dfcb6d76f2f6a9894gjkege8a4ab232222';
 
 module.exports = {
   name: 'test',
-  description: 'Searches YouTube and sends MP3 as a Facebook audio attachment.',
+  description: 'Searches YouTube for a song and uploads MP3 audio.',
   usage: '-ytmusic <song name>',
   author: 'coffee',
 
-  async execute(id, args, token) {
-    if (!args[0]) return sendMessage(id, { text: '❌ Please provide a song title.' }, token);
+  async execute(senderId, args, pageAccessToken) {
+    if (!args.length) {
+      return sendMessage(senderId, { text: '❎ | Please provide a song title.' }, pageAccessToken);
+    }
 
-    // Step 1: Search YouTube
-    const result = (await ytsr(`${args.join(' ')} official music video`, { limit: 1 })).items[0];
-    if (!result?.url) return sendMessage(id, { text: '❌ Could not find that song.' }, token);
+    const query = args.join(' ') + ' official music video';
+    const result = (await ytsr(query, { limit: 1 })).items[0];
+    if (!result?.url) {
+      return sendMessage(senderId, { text: '❎ | Could not find the song.' }, pageAccessToken);
+    }
 
-    // Step 2: Get MP3 info from oceansaver
     try {
       const { data } = await axios.get(API_BASE, {
         params: {
@@ -33,63 +36,63 @@ module.exports = {
         headers: {
           'Referer': 'https://loader.fo/',
           'Origin': 'https://loader.fo/',
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 10)',
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
           'Accept': '*/*',
           'Accept-Language': 'en-US,en;q=0.8'
         }
       });
 
-      const mp3url = data?.progress_url;
+      const mp3Url = data?.progress_url;
       const title = data?.title || result.title;
       const thumb = data?.info?.image || result.bestThumbnail?.url;
 
-      if (!mp3url) return sendMessage(id, { text: '❌ MP3 download link missing.' }, token);
+      if (!mp3Url) {
+        return sendMessage(senderId, { text: '❎ | MP3 download link not found.' }, pageAccessToken);
+      }
 
-      // Step 3: Download MP3 to temp file
-      const mp3 = await axios.get(mp3url, { responseType: 'arraybuffer' });
-      const filePath = path.join(__dirname, 'temp.mp3');
-      fs.writeFileSync(filePath, mp3.data);
+      // Download the MP3
+      const buffer = (await axios.get(mp3Url, { responseType: 'arraybuffer' })).data;
+      const tempPath = path.join(__dirname, 'tmp.mp3');
+      fs.writeFileSync(tempPath, Buffer.from(buffer));
 
-      // Step 4: Upload MP3 to Facebook
+      // Upload MP3 to Facebook
       const form = new FormData();
       form.append('message', JSON.stringify({ attachment: { type: 'audio', payload: { is_reusable: true } } }));
-      form.append('filedata', fs.createReadStream(filePath));
+      form.append('filedata', fs.createReadStream(tempPath));
 
       const upload = await axios.post(
-        `https://graph.facebook.com/v22.0/me/message_attachments?access_token=${token}`,
-        form, { headers: form.getHeaders() }
+        `https://graph.facebook.com/v22.0/me/message_attachments?access_token=${pageAccessToken}`,
+        form,
+        { headers: form.getHeaders() }
       );
 
       const attachmentId = upload.data.attachment_id;
 
-      // Step 5: Send preview + MP3
-      await sendMessage(id, {
+      // Send audio with preview
+      await sendMessage(senderId, {
         attachment: {
           type: 'template',
           payload: {
             template_type: 'generic',
             elements: [{
-              title: `🎧 ${title}`,
+              title: `🎧 Title: ${title}`,
               image_url: thumb,
-              subtitle: `Audio will follow below.`
+              subtitle: 'MP3 from YouTube'
             }]
           }
         }
-      }, token);
+      }, pageAccessToken);
 
-      await sendMessage(id, {
-        message: {
-          attachment: {
-            type: 'audio',
-            payload: { attachment_id: attachmentId }
-          }
-        }
-      }, token);
+      await axios.post(`https://graph.facebook.com/v22.0/me/messages?access_token=${pageAccessToken}`, {
+        recipient: { id: senderId },
+        message: { attachment: { type: 'audio', payload: { attachment_id: attachmentId } } }
+      });
 
-      fs.unlinkSync(filePath);
-    } catch (err) {
-      console.error('ytmusic error:', err.message);
-      return sendMessage(id, { text: '❎ Failed to fetch or send audio.' }, token);
+      fs.unlinkSync(tempPath);
+
+    } catch (e) {
+      console.error('YTMUSIC ERROR:', e.message);
+      return sendMessage(senderId, { text: '❎ | Failed to download or send MP3.' }, pageAccessToken);
     }
   }
 };
