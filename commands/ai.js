@@ -5,7 +5,6 @@ const GEMINI_API_KEY = 'AIzaSyAowq5pmdXV8GZ4xJrGKSgjsQQ3Ds48Dlg';
 const conversations = new Map();
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// Bold Unicode font map
 const boldMap = Object.fromEntries(
   [...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789']
     .map(c => [c, String.fromCodePoint(c.charCodeAt(0) + (
@@ -13,18 +12,13 @@ const boldMap = Object.fromEntries(
     ))])
 );
 
-// Convert **text** to Unicode bold with \n before it
 const formatBold = text =>
-  text.replace(/(^|\s)\*\*(.+?)\*\*(?=\s|$)/g, (_, space, word) =>
-    `${space}\n${[...word].map(c => boldMap[c] || c).join('')}`
-  );
-
-// Insert \n\n after complete thoughts like an email-style paragraph
-const formatParagraphs = text =>
   text
-    .replace(/([.!?])(\s+)(?=[A-Z])/g, '$1\n\n')  // break after sentence if next starts with uppercase
-    .replace(/\n{3,}/g, '\n\n')                   // normalize excessive spacing
-    .trim();
+    .replace(/^\s*[\*\-•]+\s*\n(?=\s*\*\*)/gm, '') 
+    .replace(/(^|\s)\*\*(.+?)\*\*(?=\s|$)/g, (_, s, w) => `${s}\n${[...w].map(c => boldMap[c] || c).join('')}`);
+
+const formatParagraphs = text =>
+  text.replace(/([.!?])(\s+)(?=[A-Z])/g, '$1\n\n').replace(/\n{3,}/g, '\n\n').trim();
 
 const getImageUrl = async (e, token) => {
   const mid = e?.message?.reply_to?.mid || e?.message?.mid;
@@ -34,8 +28,8 @@ const getImageUrl = async (e, token) => {
       params: { access_token: token }
     });
     return data?.data?.[0]?.image_data?.url || data?.data?.[0]?.file_url || null;
-  } catch (e) {
-    console.error("Image fetch error:", e?.response?.data || e.message);
+  } catch (err) {
+    console.error('Image fetch error:', err?.response?.data || err.message);
     return null;
   }
 };
@@ -48,48 +42,41 @@ module.exports = {
 
   async execute(senderId, args, token, event, sendMessage, imageCache) {
     const prompt = args.join(' ').trim();
-    if (!prompt) return sendMessage(senderId, { text: "Ask me something!" }, token);
+    if (!prompt) return sendMessage(senderId, { text: 'Ask me something!' }, token);
 
     let url = await getImageUrl(event, token);
-    if (!url && imageCache?.get(senderId)?.url) {
-      const cached = imageCache.get(senderId);
-      if (Date.now() - cached.timestamp <= 300000) url = cached.url;
-    }
+    const cached = imageCache?.get(senderId);
+    if (!url && cached && Date.now() - cached.timestamp <= 300000) url = cached.url;
 
     let imagePart = null;
     if (url) {
       try {
-        const res = await axios.get(url, { responseType: 'arraybuffer' });
-        imagePart = {
-          inline_data: {
-            mimeType: res.headers['content-type'],
-            data: Buffer.from(res.data).toString('base64')
-          }
-        };
+        const { data, headers } = await axios.get(url, { responseType: 'arraybuffer' });
+        imagePart = { inline_data: { mimeType: headers['content-type'], data: Buffer.from(data).toString('base64') } };
       } catch {
-        return sendMessage(senderId, { text: "❎ | Failed to process the image." }, token);
+        return sendMessage(senderId, { text: '❎ | Failed to process the image.' }, token);
       }
     }
 
     const history = conversations.get(senderId) || [];
-    history.push({ role: "user", parts: imagePart ? [{ text: prompt }, imagePart] : [{ text: prompt }] });
+    history.push({ role: 'user', parts: imagePart ? [{ text: prompt }, imagePart] : [{ text: prompt }] });
 
     try {
       const { data } = await axios.post(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-        { contents: history, generationConfig: { responseMimeType: "text/plain" } },
+        { contents: history, generationConfig: { responseMimeType: 'text/plain' } },
         { headers: { 'Content-Type': 'application/json' } }
       );
 
       let reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-      if (!reply) return sendMessage(senderId, { text: "No reply received." }, token);
+      if (!reply) return sendMessage(senderId, { text: 'No reply received.' }, token);
 
       reply = formatParagraphs(formatBold(reply));
-      history.push({ role: "model", parts: [{ text: reply }] });
+      history.push({ role: 'model', parts: [{ text: reply }] });
       conversations.set(senderId, history.slice(-20));
 
-      const prefix = "💬 | 𝙶𝚘𝚘𝚐𝚕𝚎 𝙶𝚎𝚖𝚒𝚗𝚒\n・───────────・\n";
-      const suffix = "\n・──── >ᴗ< ────・";
+      const prefix = '💬 | 𝙶𝚘𝚘𝚐𝚕𝚎 𝙶𝚎𝚖𝚒𝚗𝚒\n・───────────・\n';
+      const suffix = '\n・──── >ᴗ< ────・';
       const chunks = reply.match(/[\s\S]{1,1900}/g);
 
       for (let i = 0; i < chunks.length; i++) {
@@ -97,9 +84,9 @@ module.exports = {
         await sendMessage(senderId, { text: part }, token);
         if (i < chunks.length - 1) await sleep(750);
       }
-    } catch (e) {
-      console.error("Gemini error:", e?.response?.data || e.message);
-      sendMessage(senderId, { text: "❎ | Gemini Flash error." }, token);
+    } catch (err) {
+      console.error('Gemini error:', err?.response?.data || err.message);
+      sendMessage(senderId, { text: '❎ | Gemini Flash error.' }, token);
     }
   }
 };
